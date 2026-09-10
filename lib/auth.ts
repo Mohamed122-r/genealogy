@@ -3,47 +3,40 @@ import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { db } from "@/lib/db";
 import { z } from "zod";
-import { authConfig } from "@/lib/auth.config";
 
-// مخطط التحقق من صحة البيانات
 const loginSchema = z.object({
-  email: z.string().email("البريد الإلكتروني غير صالح"),
-  password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
+  email: z.string().email(),
+  password: z.string().min(8),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  ...authConfig,
+  // ⚠️ الحل الأساسي: إضافة trustHost و secret
+  trustHost: true,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  
   session: { strategy: "jwt" },
+  
+  pages: {
+    signIn: "/login",
+  },
+  
   providers: [
     Credentials({
       credentials: {
-        email: { label: "البريد الإلكتروني", type: "email" },
-        password: { label: "كلمة المرور", type: "password" },
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
       },
       authorize: async (credentials) => {
         const parsed = loginSchema.safeParse(credentials);
-
-        if (!parsed.success) {
-          return null;
-        }
+        if (!parsed.success) return null;
 
         const { email, password } = parsed.data;
 
-        // البحث عن المستخدم في قاعدة البيانات
-        const user = await db.user.findUnique({
-          where: { email },
-        });
+        const user = await db.user.findUnique({ where: { email } });
+        if (!user) return null;
 
-        if (!user) {
-          return null;
-        }
-
-        // التحقق من كلمة المرور
         const isValid = await compare(password, user.password);
-
-        if (!isValid) {
-          return null;
-        }
+        if (!isValid) return null;
 
         return {
           id: user.id,
@@ -54,6 +47,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
