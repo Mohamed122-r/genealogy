@@ -6,40 +6,14 @@
    الأساسيات (Base)
    ============================================ */
 @layer base {
-  :root {
-    --background: 40 50% 95%;
-    --foreground: 160 50% 10%;
-    --card: 40 40% 98%;
-    --card-foreground: 160 50% 10%;
-    --popover: 40 40% 98%;
-    --popover-foreground: 160 50% 10%;
-    --primary: 160 60% 20%;
-    --primary-foreground: 40 40% 98%;
-    --secondary: 45 50% 80%;
-    --secondary-foreground: 160 50% 10%;
-    --muted: 45 30% 90%;
-    --muted-foreground: 160 20% 30%;
-    --accent: 45 80% 60%;
-    --accent-foreground: 160 50% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 45 40% 75%;
-    --input: 45 40% 75%;
-    --ring: 160 60% 20%;
-    --radius: 0.75rem;
-  }
-
-  * {
-    @apply border-border;
-  }
-
   html {
     scroll-behavior: smooth;
     font-size: 16px;
   }
 
   body {
-    @apply bg-heritage-bg text-dark-bg;
+    background-color: #FDFBF3;
+    color: #0A1711;
     direction: rtl;
     font-family: 'Cairo', sans-serif;
     line-height: 1.7;
@@ -87,35 +61,33 @@
    المكونات المخصصة (Components)
    ============================================ */
 @layer components {
-  /* زر ذهبي أنيق */
   .btn-gold {
     @apply bg-gold-500 text-dark-bg px-6 py-3 rounded-lg font-bold shadow-lg;
-    @apply hover:bg-gold-600 hover:shadow-2xl hover:-translate-y-1;
-    @apply transition-all duration-300;
+    transition: all 0.3s ease;
+  }
+  .btn-gold:hover {
+    @apply bg-gold-600 shadow-2xl;
+    transform: translateY(-2px);
   }
 
-  /* زر داكن أنيق */
   .btn-dark {
     @apply bg-dark-bg text-white px-6 py-3 rounded-lg font-bold shadow-lg;
-    @apply hover:bg-deep-green hover:shadow-2xl hover:-translate-y-1;
-    @apply transition-all duration-300;
+    transition: all 0.3s ease;
+  }
+  .btn-dark:hover {
+    @apply bg-deep-green shadow-2xl;
+    transform: translateY(-2px);
   }
 
-  /* بطاقة أنيقة */
   .card-elegant {
     @apply bg-white rounded-2xl p-6 shadow-xl border border-gold-500/20;
-    @apply hover:shadow-2xl hover:border-gold-500/50 hover:-translate-y-2;
-    @apply transition-all duration-300;
+    transition: all 0.3s ease;
+  }
+  .card-elegant:hover {
+    @apply shadow-2xl border-gold-500/50;
+    transform: translateY(-5px);
   }
 
-  /* بطاقة داكنة */
-  .card-dark {
-    @apply bg-dark-bg text-white rounded-2xl p-6 shadow-xl border border-gold-500/30;
-    @apply hover:shadow-2xl hover:-translate-y-2;
-    @apply transition-all duration-300;
-  }
-
-  /* فاصل ذهبي */
   .divider-gold {
     @apply w-24 h-1 bg-gold-500 mx-auto my-6 rounded-full;
   }
@@ -125,17 +97,14 @@
    الأنماط المساعدة (Utilities)
    ============================================ */
 @layer utilities {
-  /* النص التراثي */
   .font-heritage {
     font-family: 'Amiri', serif;
   }
 
-  /* النص الحديث */
   .font-modern {
     font-family: 'Cairo', sans-serif;
   }
 
-  /* نص ذهبي متدرج */
   .text-gold-gradient {
     background: linear-gradient(135deg, #C9A227 0%, #F5E6A1 50%, #C9A227 100%);
     -webkit-background-clip: text;
@@ -143,38 +112,26 @@
     background-clip: text;
   }
 
-  /* خلفية تراثية */
   .bg-heritage-pattern {
     background-image:
       radial-gradient(circle at 20% 50%, rgba(201, 162, 39, 0.05) 0%, transparent 50%),
       radial-gradient(circle at 80% 80%, rgba(15, 61, 46, 0.05) 0%, transparent 50%);
   }
 
-  /* ظل ذهبي */
   .shadow-gold {
     box-shadow: 0 10px 40px -10px rgba(201, 162, 39, 0.5);
   }
 
-  /* ظل داكن */
   .shadow-dark {
     box-shadow: 0 10px 40px -10px rgba(10, 23, 17, 0.5);
   }
 
-  /* تأثير التلاشي */
   .animate-fade-in {
     animation: fadeIn 0.8s ease-out;
   }
 
-  /* تأثير الطفو */
   .animate-float {
     animation: float 3s ease-in-out infinite;
-  }
-
-  /* إخفاء في وضع الطباعة */
-  @media print {
-    .no-print {
-      display: none !important;
-    }
   }
 }
 
@@ -198,15 +155,6 @@
   }
   50% {
     transform: translateY(-10px);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -1000px 0;
-  }
-  100% {
-    background-position: 1000px 0;
   }
 }
 
