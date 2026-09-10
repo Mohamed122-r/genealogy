@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "شجرة النسب العائلية الكريمة",
@@ -30,7 +31,7 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans bg-heritage-bg text-dark-bg antialiased">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
