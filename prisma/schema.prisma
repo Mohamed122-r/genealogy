@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================================================
+// المستخدمون والصلاحيات
+// =====================================================
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String
+  password  String
+  role      Role       @default(VIEWER)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  auditLogs AuditLog[]
+}
+
+// =====================================================
+// الفروع (العائلات الفرعية)
+// =====================================================
+model Branch {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  color       String   @default("#0F3D2E")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  people      Person[]
+}
+
+// =====================================================
+// الأشخاص (جوهر النظام)
+// =====================================================
+enum PersonStatus {
+  ALIVE
+  DECEASED
+  DISCONNECTED
+  UNKNOWN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+model Person {
+  id        String       @id @default(cuid())
+  firstName String
+  lastName  String
+  fullName  String
+  gender    Gender       @default(MALE)
+  status    PersonStatus @default(ALIVE)
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  fatherId String?
+  father   Person?  @relation("FatherChildren", fields: [fatherId], references: [id], onDelete: SetNull)
+  children Person[] @relation("FatherChildren")
+
+  birthDate DateTime?
+  deathDate DateTime?
+  notes     String?
+  photoUrl  String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([fatherId])
+  @@index([branchId])
+  @@index([status])
+  @@index([fullName])
+}
+
+// =====================================================
+// سجل العمليات (Audit Logs)
+// =====================================================
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
+  createdAt  DateTime @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType])
+  @@index([userId])
+}
