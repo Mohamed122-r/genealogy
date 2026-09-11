@@ -1,110 +1,186 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Upload, Download, Loader2, FileSpreadsheet } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import { importPeople, exportPeopleCSV } from "@/server/actions/import.actions";
+import { Upload, Download, FileSpreadsheet, Loader2 } from "lucide-react";
 
 export function ImportExportPanel() {
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const { toast } = useToast();
+  const [result, setResult] = useState<{
+    successCount: number;
+    errorCount: number;
+    errors: string[];
+  } | null>(null);
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsImporting(true);
-    const reader = new FileReader();
+    setResult(null);
 
+    const reader = new FileReader();
     reader.onload = async (event) => {
       try {
         const text = event.target?.result as string;
-        // محاولة تحويل JSON أولاً، ثم CSV
-        let data: any[] = [];
-        
-        if (file.name.endsWith('.json')) {
-          data = JSON.parse(text);
-        } else {
-          // تحويل CSV بسيط (يمكن تحسينه بمكتبة PapaParse لاحقاً)
-          const lines = text.split('\n');
-          const headers = lines[0].split(',').map(h => h.replace(/"/g, ''));
-          data = lines.slice(1).map(line => {
-            const values = line.split(',').map(v => v.replace(/"/g, ''));
-            return Object.fromEntries(headers.map((h, i) => [h, values[i]]));
+        const lines = text.split(/\r?\n/).filter((l) => l.trim());
+        const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+
+        const people = lines.slice(1).map((line) => {
+          const values = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
+          const row: any = {};
+          headers.forEach((header, i) => {
+            row[header] = values[i];
           });
-        }
 
-        // تعيين أسماء الحقول للـ Schema
-        const formattedData = data.map((row: any) => ({
-          firstName: row["الاسم الأول"] || row.firstName,
-          lastName: row["اسم العائلة"] || row.lastName,
-          gender: row["الجنس"] || row.gender || "MALE",
-          status: row["الحالة"] || row.status || "ALIVE",
-          fatherFullName: row["اسم الأب"] || row.fatherFullName || null,
-          branchName: row["الفرع"] || row.branchName || null,
-          birthDate: row["تاريخ الميلاد"] || null,
-          deathDate: row["تاريخ الوفاة"] || null,
-          notes: row["ملاحظات"] || null,
-        }));
+          return {
+            firstName: row["الاسم الأول"] || row["firstName"] || "",
+            lastName: row["اسم العائلة"] || row["lastName"] || "",
+            gender: row["الجنس"] === "أنثى" || row["gender"] === "FEMALE" ? "FEMALE" : "MALE",
+            status: row["الحالة"] || row["status"] || "ALIVE",
+            fatherFullName: row["اسم الأب"] || row["fatherFullName"] || "",
+            birthDate: row["تاريخ الميلاد"] || row["birthDate"] || "",
+            deathDate: row["تاريخ الوفاة"] || row["deathDate"] || "",
+            notes: row["ملاحظات"] || row["notes"] || "",
+          };
+        });
 
-        const result = await importPeople(formattedData);
+        const response = await fetch("/api/admin/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ people }),
+        });
 
-        if (result.success) {
-          toast({ 
-            title: "تم الاستيراد", 
-            description: `تم استيراد ${result.successCount} شخص بنجاح، و ${result.errorCount} فشل` 
-          });
-        } else {
-          toast({ title: "خطأ", description: "فشل الاستيراد", variant: "destructive" });
-        }
+        const data = await response.json();
+        setResult(data);
+        setTimeout(() => window.location.reload(), 3000);
       } catch (error) {
-        toast({ title: "خطأ", description: "صيغة الملف غير مدعومة", variant: "destructive" });
+        alert("خطأ في معالجة الملف");
       } finally {
         setIsImporting(false);
         e.target.value = "";
       }
     };
 
-    reader.readAsText(file);
+    reader.readAsText(file, "UTF-8");
   }
 
   async function handleExport() {
     setIsExporting(true);
     try {
-      const csvData = await exportPeopleCSV();
-      const blob = new Blob(["\uFEFF" + csvData], { type: "text/csv;charset=utf-8;" });
+      const response = await fetch("/api/admin/export");
+      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "people-export.csv";
+      link.download = `genealogy-${Date.now()}.csv`;
       link.click();
       URL.revokeObjectURL(url);
-      toast({ title: "نجاح", description: "تم تصدير البيانات بنجاح" });
     } catch (error) {
-      toast({ title: "خطأ", description: "فشل التصدير", variant: "destructive" });
+      alert("خطأ في التصدير");
     } finally {
       setIsExporting(false);
     }
   }
 
   return (
-    <div className="flex gap-4">
-      <label className="cursor-pointer">
-        <input type="file" accept=".csv,.json" className="hidden" onChange={handleImport} disabled={isImporting} />
-        <Button variant="outline" disabled={isImporting} asChild>
-          <span className="flex items-center gap-2">
-            {isImporting ? <Loader2 className="animate-spin" /> : <Upload className="w-4 h-4" />}
-            استيراد (CSV / JSON)
-          </span>
-        </Button>
-      </label>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* الاستيراد */}
+        <div className="bg-white rounded-xl p-6 border border-gold-500/20 shadow-lg">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-full bg-dark-bg flex items-center justify-center">
+              <Upload className="w-6 h-6 text-gold-500" />
+            </div>
+            <h3 className="text-xl font-bold text-dark-bg">استيراد CSV</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            ارفع ملف CSV يحتوي على: الاسم الأول، اسم العائلة، الجنس، الحالة، اسم الأب.
+          </p>
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleImport}
+              disabled={isImporting}
+              className="hidden"
+            />
+            <div className="bg-gold-500 text-dark-bg px-6 py-3 rounded-lg font-bold hover:bg-gold-600 flex items-center justify-center gap-2 transition">
+              {isImporting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  جاري الاستيراد...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-5 h-5" />
+                  اختر ملف CSV
+                </>
+              )}
+            </div>
+          </label>
+        </div>
 
-      <Button variant="outline" onClick={handleExport} disabled={isExporting}>
-        {isExporting ? <Loader2 className="animate-spin" /> : <Download className="w-4 h-4" />}
-        تصدير (CSV)
-      </Button>
+        {/* التصدير */}
+        <div className="bg-white rounded-xl p-6 border border-gold-500/20 shadow-lg">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-full bg-dark-bg flex items-center justify-center">
+              <Download className="w-6 h-6 text-gold-500" />
+            </div>
+            <h3 className="text-xl font-bold text-dark-bg">تصدير البيانات</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            حمّل جميع البيانات الحالية كملف CSV (متوافق مع Excel).
+          </p>
+          <button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="bg-dark-bg text-white px-6 py-3 rounded-lg font-bold hover:bg-deep-green flex items-center justify-center gap-2 transition w-full"
+          >
+            {isExporting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                جاري التصدير...
+              </>
+            ) : (
+              <>
+                <Download className="w-5 h-5" />
+                تحميل CSV
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* نتائج الاستيراد */}
+      {result && (
+        <div className="bg-white rounded-xl p-6 border border-gold-500/20 shadow-lg">
+          <h3 className="text-xl font-bold text-dark-bg mb-4 flex items-center gap-2">
+            <FileSpreadsheet className="w-6 h-6 text-gold-500" />
+            نتيجة الاستيراد
+          </h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-green-50 p-4 rounded-lg">
+              <p className="text-sm text-green-700 mb-1">تم بنجاح</p>
+              <p className="text-2xl font-bold text-green-800">{result.successCount}</p>
+            </div>
+            <div className="bg-red-50 p-4 rounded-lg">
+              <p className="text-sm text-red-700 mb-1">فشل</p>
+              <p className="text-2xl font-bold text-red-800">{result.errorCount}</p>
+            </div>
+          </div>
+          {result.errors && result.errors.length > 0 && (
+            <div className="mt-4 bg-red-50 p-4 rounded-lg">
+              <p className="text-sm font-bold text-red-700 mb-2">الأخطاء:</p>
+              <ul className="text-xs text-red-600 space-y-1">
+                {result.errors.map((err, i) => (
+                  <li key={i}>• {err}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
