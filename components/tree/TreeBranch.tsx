@@ -6,16 +6,14 @@ interface TreeBranchProps {
 }
 
 export function TreeBranch({ parent, child }: TreeBranchProps) {
-  // نقطة البداية (أسفل الأب)
   const startX = parent.x;
-  const startY = parent.y + parent.height / 2;
-
-  // نقطة النهاية (أعلى الابن)
+  const startY = parent.y + 20;
   const endX = child.x;
-  const endY = child.y - child.height / 2;
+  const endY = child.y - 20;
 
-  // منحنى بيزير ليعطي شكل فرع طبيعي
   const midY = (startY + endY) / 2;
+
+  // منحنى بيزير بشكل فرع طبيعي
   const path = `M ${startX} ${startY} 
                 C ${startX} ${midY}, 
                   ${endX} ${midY}, 
@@ -23,24 +21,32 @@ export function TreeBranch({ parent, child }: TreeBranchProps) {
 
   return (
     <g>
+      {/* الظل */}
+      <path
+        d={path}
+        fill="none"
+        stroke="#3D1F0A"
+        strokeWidth={4}
+        strokeLinecap="round"
+        opacity={0.2}
+        transform="translate(2, 2)"
+      />
       {/* الفرع الرئيسي */}
       <path
         d={path}
         fill="none"
-        stroke="#8B5A2B"
-        strokeWidth={2.5}
+        stroke="#6B3E1E"
+        strokeWidth={3}
         strokeLinecap="round"
-        opacity={0.85}
       />
-      {/* ظل الفرع */}
+      {/* التدرج الضوئي على الفرع */}
       <path
         d={path}
         fill="none"
-        stroke="#5D3A1A"
-        strokeWidth={1}
+        stroke="#8B5A2B"
+        strokeWidth={1.5}
         strokeLinecap="round"
-        opacity={0.3}
-        transform="translate(1, 1)"
+        opacity={0.6}
       />
     </g>
   );
