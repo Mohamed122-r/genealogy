@@ -1,6 +1,8 @@
 import type { NextAuthConfig } from "next-auth";
 
 export const authConfig = {
+  trustHost: true,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: "/login",
   },
@@ -9,19 +11,13 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const isOnAdmin = nextUrl.pathname.startsWith("/admin");
 
-      // حماية صفحات الأدمن
       if (isOnAdmin) {
         if (isLoggedIn) return true;
         return false;
       }
 
-      // منع المسجلين من دخول صفحة تسجيل الدخول
-      if (isLoggedIn && nextUrl.pathname.startsWith("/login")) {
-        return Response.redirect(new URL("/admin/dashboard", nextUrl));
-      }
-
       return true;
     },
   },
-  providers: [], // سيتم إضافتها في lib/auth.ts
+  providers: [],
 } satisfies NextAuthConfig;
