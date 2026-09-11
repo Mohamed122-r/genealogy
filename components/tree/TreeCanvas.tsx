@@ -22,21 +22,20 @@ export function TreeCanvas({
   svgRef,
   onExport,
 }: TreeCanvasProps) {
-  const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1000, height: 800 });
+  const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1200, height: 1000 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
   const [searchTerm, setSearchTerm] = useState("");
   const [zoomLevel, setZoomLevel] = useState(1);
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // حساب مواقع العقد
   const layoutNodes = useMemo(() => {
-    return calculateTreeLayout(nodes, { width: 1000, height: 800 });
+    return calculateTreeLayout(nodes, { width: 1200, height: 1000 });
   }, [nodes]);
 
   // أبعاد الشجرة الكلية
   const treeBounds = useMemo(() => {
-    if (layoutNodes.length === 0) return { minX: 0, minY: 0, maxX: 1000, maxY: 800 };
+    if (layoutNodes.length === 0) return { minX: 0, minY: 0, maxX: 1200, maxY: 1000 };
 
     const minX = Math.min(...layoutNodes.map((n) => n.x - n.width / 2));
     const maxX = Math.max(...layoutNodes.map((n) => n.x + n.width / 2));
@@ -46,9 +45,9 @@ export function TreeCanvas({
     return { minX, minY, maxX, maxY };
   }, [layoutNodes]);
 
-  // إعادة ضبط العرض عند التغيير
+  // إعادة ضبط العرض
   useEffect(() => {
-    const padding = 100;
+    const padding = 150;
     setViewBox({
       x: treeBounds.minX - padding,
       y: treeBounds.minY - padding,
@@ -57,7 +56,6 @@ export function TreeCanvas({
     });
   }, [treeBounds]);
 
-  // التكبير والتصغير
   const handleZoom = (direction: "in" | "out") => {
     setZoomLevel((prev) => {
       const next = direction === "in" ? prev * 1.2 : prev / 1.2;
@@ -65,13 +63,10 @@ export function TreeCanvas({
     });
   };
 
-  // البحث
   const handleSearch = (term: string) => {
     setSearchTerm(term);
     if (term.trim()) {
-      const found = layoutNodes.find((node) =>
-        node.fullName.includes(term.trim())
-      );
+      const found = layoutNodes.find((node) => node.fullName.includes(term.trim()));
       if (found) {
         setViewBox((prev) => ({
           ...prev,
@@ -83,9 +78,8 @@ export function TreeCanvas({
     }
   };
 
-  // إعادة الضبط
   const resetView = () => {
-    const padding = 100;
+    const padding = 150;
     setZoomLevel(1);
     setViewBox({
       x: treeBounds.minX - padding,
@@ -95,7 +89,6 @@ export function TreeCanvas({
     });
   };
 
-  // التحريك بالماوس
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsPanning(true);
     setStartPan({ x: e.clientX, y: e.clientY });
@@ -147,48 +140,63 @@ export function TreeCanvas({
     }
   };
 
-  // ملء الشاشة
-  const toggleFullscreen = () => {
-    if (!isFullscreen) {
-      svgRef.current?.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
-  };
+  // حساب مواقع الجذور لرسم الجذع
+  const rootX = layoutNodes.length > 0 
+    ? (Math.min(...layoutNodes.map(n => n.x)) + Math.max(...layoutNodes.map(n => n.x))) / 2
+    : 600;
+  const rootY = treeBounds.maxY + 100;
 
   return (
     <div className="w-full h-[600px] md:h-[800px] bg-[#FDFBF3] relative overflow-hidden rounded-2xl">
-      {/* إطار ذهبي */}
-      <div className="absolute inset-0 border-4 border-[#C9A227]/20 pointer-events-none z-10 rounded-2xl"></div>
+      {/* الإطار الذهبي المزخرف */}
+      <div className="absolute inset-0 pointer-events-none z-10 m-2">
+        <svg width="100%" height="100%" className="w-full h-full">
+          <defs>
+            <linearGradient id="goldFrame" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#C9A227" />
+              <stop offset="50%" stopColor="#F5E6A1" />
+              <stop offset="100%" stopColor="#C9A227" />
+            </linearGradient>
+          </defs>
+          <rect
+            x="5"
+            y="5"
+            width="calc(100% - 10px)"
+            height="calc(100% - 10px)"
+            fill="none"
+            stroke="url(#goldFrame)"
+            strokeWidth="3"
+            rx="20"
+          />
+        </svg>
+      </div>
 
       {/* شريط الأدوات الأيمن */}
-      <div className="absolute top-4 right-4 z-20 flex flex-col gap-2 bg-[#0A1711]/95 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-[#C9A227]/30">
+      <div className="absolute top-4 right-4 z-20 flex flex-col gap-2 bg-dark-bg/95 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-gold-500/30">
         <button
           onClick={() => handleZoom("in")}
-          className="p-2 text-white hover:bg-[#C9A227] hover:text-[#0A1711] rounded-xl transition-all duration-200"
+          className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"
           title="تكبير"
         >
           <ZoomIn className="w-5 h-5" />
         </button>
         <button
           onClick={() => handleZoom("out")}
-          className="p-2 text-white hover:bg-[#C9A227] hover:text-[#0A1711] rounded-xl transition-all duration-200"
+          className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"
           title="تصغير"
         >
           <ZoomOut className="w-5 h-5" />
         </button>
         <button
           onClick={resetView}
-          className="p-2 text-white hover:bg-[#C9A227] hover:text-[#0A1711] rounded-xl transition-all duration-200"
+          className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"
           title="إعادة ضبط"
         >
           <RotateCcw className="w-5 h-5" />
         </button>
         <button
-          onClick={toggleFullscreen}
-          className="p-2 text-white hover:bg-[#C9A227] hover:text-[#0A1711] rounded-xl transition-all duration-200"
+          onClick={() => svgRef.current?.requestFullscreen()}
+          className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"
           title="ملء الشاشة"
         >
           <Maximize2 className="w-5 h-5" />
@@ -196,7 +204,7 @@ export function TreeCanvas({
         {onExport && (
           <button
             onClick={() => onExport("png")}
-            className="p-2 text-white hover:bg-[#C9A227] hover:text-[#0A1711] rounded-xl transition-all duration-200"
+            className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"
             title="تصدير"
           >
             <Download className="w-5 h-5" />
@@ -204,23 +212,21 @@ export function TreeCanvas({
         )}
       </div>
 
-      {/* شريط البحث الأيسر */}
-      <div className="absolute top-4 left-4 z-20 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-2 flex items-center gap-2 w-64 border border-[#C9A227]/30">
-        <Search className="w-4 h-4 text-[#C9A227]" />
+      {/* البحث */}
+      <div className="absolute top-4 left-4 z-20 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-2 flex items-center gap-2 w-64 border border-gold-500/30">
+        <Search className="w-4 h-4 text-gold-500" />
         <input
           type="text"
           placeholder="ابحث عن شخص..."
           value={searchTerm}
           onChange={(e) => handleSearch(e.target.value)}
-          className="bg-transparent outline-none w-full text-sm text-[#0A1711] placeholder:text-gray-400"
+          className="bg-transparent outline-none w-full text-sm text-dark-bg placeholder:text-gray-400"
         />
       </div>
 
       {/* لوحة الرسم SVG */}
       <div
-        className={`flex-1 h-full overflow-hidden ${
-          isPanning ? "cursor-grabbing" : "cursor-grab"
-        }`}
+        className={`flex-1 h-full overflow-hidden ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -242,55 +248,57 @@ export function TreeCanvas({
             viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
             className="w-full h-full"
           >
-            {/* الخلفية */}
+            {/* خلفية تراثية */}
             <defs>
-              <pattern
-                id="heritagePattern"
-                x="0"
-                y="0"
-                width="40"
-                height="40"
-                patternUnits="userSpaceOnUse"
-              >
-                <path
-                  d="M 20 0 L 20 40 M 0 20 L 40 20"
-                  stroke="#e5e0d0"
-                  strokeWidth="0.5"
-                  fill="none"
-                  opacity="0.5"
-                />
+              <pattern id="heritageBg" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+                <path d="M 30 0 L 30 60 M 0 30 L 60 30" stroke="#e8dfc8" strokeWidth="0.5" fill="none" opacity="0.6" />
+                <circle cx="30" cy="30" r="2" fill="#e8dfc8" opacity="0.4" />
               </pattern>
-              {/* تدرج ذهبي */}
-              <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#C9A227" />
-                <stop offset="50%" stopColor="#F5E6A1" />
-                <stop offset="100%" stopColor="#C9A227" />
+              <radialGradient id="treeGlow" cx="50%" cy="80%" r="60%">
+                <stop offset="0%" stopColor="#C9A227" stopOpacity="0.1" />
+                <stop offset="100%" stopColor="#C9A227" stopOpacity="0" />
+              </radialGradient>
+              <linearGradient id="trunkGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#4A2810" />
+                <stop offset="50%" stopColor="#6B3E1E" />
+                <stop offset="100%" stopColor="#4A2810" />
               </linearGradient>
             </defs>
-            <rect width="100%" height="100%" fill="url(#heritagePattern)" />
+            <rect width="100%" height="100%" fill="#FDFBF3" />
+            <rect width="100%" height="100%" fill="url(#heritageBg)" />
+            <rect width="100%" height="100%" fill="url(#treeGlow)" />
 
-            {/* الجذع التراثي */}
+            {/* ===== الجذع الرئيسي ===== */}
             <path
-              d={`M ${(treeBounds.minX + treeBounds.maxX) / 2} ${
-                treeBounds.maxY + 100
-              } 
-                 C ${(treeBounds.minX + treeBounds.maxX) / 2} ${
-                treeBounds.maxY - 100
-              }, 
-                   ${treeBounds.minX - 50} ${treeBounds.maxY - 200}, 
-                   ${treeBounds.minX - 50} ${treeBounds.minY - 50}`}
-              stroke="#5D3A1A"
-              strokeWidth="20"
-              fill="none"
-              strokeLinecap="round"
-              opacity="0.9"
+              d={`M ${rootX - 80} ${rootY} 
+                 C ${rootX - 60} ${rootY - 100}, ${rootX - 50} ${rootY - 200}, ${rootX - 30} ${rootY - 300}
+                 L ${rootX + 30} ${rootY - 300}
+                 C ${rootX + 50} ${rootY - 200}, ${rootX + 60} ${rootY - 100}, ${rootX + 80} ${rootY}
+                 Z`}
+              fill="url(#trunkGradient)"
+              stroke="#3D1F0A"
+              strokeWidth="2"
             />
 
-            {/* رسم الفروع */}
+            {/* خطوط الجذع التفصيلية */}
+            <path
+              d={`M ${rootX - 40} ${rootY - 50} C ${rootX - 20} ${rootY - 150}, ${rootX - 10} ${rootY - 250}, ${rootX} ${rootY - 290}`}
+              fill="none"
+              stroke="#3D1F0A"
+              strokeWidth="1"
+              opacity="0.6"
+            />
+            <path
+              d={`M ${rootX + 40} ${rootY - 50} C ${rootX + 20} ${rootY - 150}, ${rootX + 10} ${rootY - 250}, ${rootX} ${rootY - 290}`}
+              fill="none"
+              stroke="#3D1F0A"
+              strokeWidth="1"
+              opacity="0.6"
+            />
+
+            {/* ===== الأغصان الرئيسية (رسم بيزير) ===== */}
             {layoutNodes.map((node) => {
-              const children = layoutNodes.filter(
-                (child) => child.fatherId === node.id
-              );
+              const children = layoutNodes.filter((child) => child.fatherId === node.id);
               return children.map((child) => (
                 <TreeBranch
                   key={`${node.id}-${child.id}`}
@@ -300,7 +308,7 @@ export function TreeCanvas({
               ));
             })}
 
-            {/* رسم الأوراق (الأشخاص) */}
+            {/* ===== الأوراق (الأشخاص) ===== */}
             {layoutNodes.map((node) => (
               <TreeLeaf
                 key={node.id}
@@ -311,6 +319,12 @@ export function TreeCanvas({
             ))}
           </svg>
         </div>
+      </div>
+
+      {/* عداد الأشخاص */}
+      <div className="absolute bottom-4 right-4 z-20 bg-dark-bg/90 backdrop-blur-md text-white px-4 py-2 rounded-xl shadow-xl border border-gold-500/30">
+        <span className="text-xs text-gold-500">إجمالي الأشخاص:</span>
+        <span className="font-bold mr-2 text-lg">{layoutNodes.length}</span>
       </div>
     </div>
   );
