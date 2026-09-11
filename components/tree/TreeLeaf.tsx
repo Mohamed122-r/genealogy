@@ -6,110 +6,119 @@ interface TreeLeafProps {
   onClick: () => void;
 }
 
-// ألوان الحالات
-function getStatusColor(status: string): string {
+// ألوان الحالات - أوراق خضراء للأحياء، صفراء للمتوفين
+function getLeafColor(status: string): { fill: string; stroke: string } {
   switch (status) {
     case "ALIVE":
-      return "#228B22";
+      return { fill: "#4A8B3F", stroke: "#2D5A24" }; // أخضر
     case "DECEASED":
-      return "#8B4513";
+      return { fill: "#D4A017", stroke: "#8B6B0F" }; // أصفر ذهبي
     case "DISCONNECTED":
-      return "#696969";
+      return { fill: "#8B7355", stroke: "#5D4A2E" }; // بني فاتح
     default:
-      return "#D3D3D3";
+      return { fill: "#A8A8A8", stroke: "#707070" }; // رمادي
   }
 }
 
-// ترجمة الحالة
 function getStatusLabel(status: string): string {
   switch (status) {
-    case "ALIVE":
-      return "حي";
-    case "DECEASED":
-      return "متوفى";
-    case "DISCONNECTED":
-      return "منقطع";
-    default:
-      return "غير معروف";
+    case "ALIVE": return "حي";
+    case "DECEASED": return "متوفى";
+    case "DISCONNECTED": return "منقطع";
+    default: return "غير معروف";
   }
 }
 
-// اختصار الاسم
-function truncateName(name: string, maxLength: number = 14): string {
+function truncateName(name: string, maxLength: number = 12): string {
   if (name.length <= maxLength) return name;
-  return name.substring(0, maxLength - 3) + "...";
+  return name.substring(0, maxLength - 2) + "..";
 }
 
 export function TreeLeaf({ node, isSelected, onClick }: TreeLeafProps) {
-  const statusColor = getStatusColor(node.status);
+  const colors = getLeafColor(node.status);
+  const leafWidth = 75;
+  const leafHeight = 42;
 
   return (
     <g
-      transform={`translate(${node.x - node.width / 2}, ${
-        node.y - node.height / 2
-      })`}
-      className="cursor-pointer transition-transform duration-200 hover:opacity-90"
+      transform={`translate(${node.x - leafWidth / 2}, ${node.y - leafHeight / 2})`}
+      className="cursor-pointer"
       onClick={(e) => {
         e.stopPropagation();
         onClick();
       }}
-      style={{ filter: isSelected ? "drop-shadow(0 0 10px #FFD700)" : "drop-shadow(0 4px 6px rgba(0,0,0,0.15))" }}
+      style={{
+        filter: isSelected
+          ? "drop-shadow(0 0 12px #FFD700) drop-shadow(0 0 4px #C9A227)"
+          : "drop-shadow(0 3px 5px rgba(0,0,0,0.25))",
+      }}
     >
-      {/* شكل الورقة */}
+      {/* شكل الورقة (بيضاوي مدبب من الطرفين) */}
       <path
-        d={`M ${node.width / 2} 0 
-           C ${node.width * 0.9} ${node.height * 0.2}, 
-             ${node.width} ${node.height * 0.5}, 
-             ${node.width / 2} ${node.height} 
-           C 0 ${node.height * 0.5}, 
-             ${node.width * 0.1} ${node.height * 0.2}, 
-             ${node.width / 2} 0 Z`}
-        fill={statusColor}
-        fillOpacity={isSelected ? 1 : 0.9}
-        stroke={isSelected ? "#FFD700" : "#5D3A1A"}
+        d={`M ${leafWidth / 2} 2
+           C ${leafWidth * 0.85} ${leafHeight * 0.15}, 
+             ${leafWidth - 2} ${leafHeight * 0.5}, 
+             ${leafWidth / 2} ${leafHeight - 2}
+           C 2 ${leafHeight * 0.5}, 
+             ${leafWidth * 0.15} ${leafHeight * 0.15}, 
+             ${leafWidth / 2} 2 Z`}
+        fill={colors.fill}
+        stroke={isSelected ? "#FFD700" : colors.stroke}
         strokeWidth={isSelected ? 3 : 1.5}
       />
 
-      {/* عرق الورقة (خط أبيض في المنتصف) */}
+      {/* عرق الورقة المركزي */}
       <path
-        d={`M ${node.width / 2} ${node.height * 0.1} 
-           L ${node.width / 2} ${node.height * 0.9}`}
-        stroke="#FFFFFF"
-        strokeWidth="1"
-        opacity="0.5"
+        d={`M ${leafWidth / 2} 6 L ${leafWidth / 2} ${leafHeight - 6}`}
+        stroke={colors.stroke}
+        strokeWidth="1.2"
+        opacity="0.7"
       />
 
-      {/* ساق الورقة */}
+      {/* عروق جانبية */}
       <path
-        d={`M ${node.width / 2} ${node.height * 0.9} 
-           L ${node.width / 2} ${node.height * 1.1}`}
-        stroke="#5D3A1A"
-        strokeWidth="2"
+        d={`M ${leafWidth / 2} ${leafHeight * 0.4} L ${leafWidth * 0.75} ${leafHeight * 0.35}`}
+        stroke={colors.stroke}
+        strokeWidth="0.8"
+        opacity="0.5"
+      />
+      <path
+        d={`M ${leafWidth / 2} ${leafHeight * 0.4} L ${leafWidth * 0.25} ${leafHeight * 0.35}`}
+        stroke={colors.stroke}
+        strokeWidth="0.8"
+        opacity="0.5"
       />
 
       {/* الاسم الكامل */}
       <text
-        x={node.width / 2}
-        y={node.height / 2 - 4}
+        x={leafWidth / 2}
+        y={leafHeight / 2 - 2}
         textAnchor="middle"
         fill="#FFFFFF"
-        fontSize="10"
+        fontSize="9"
         fontWeight="bold"
-        style={{ fontFamily: "Amiri, serif" }}
-        className="select-none"
+        style={{
+          fontFamily: "Amiri, serif",
+          textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+        }}
+        className="select-none pointer-events-none"
       >
-        {truncateName(node.fullName, 14)}
+        {truncateName(node.fullName, 12)}
       </text>
 
-      {/* الحالة (حي / متوفى / إلخ) */}
+      {/* الحالة */}
       <text
-        x={node.width / 2}
-        y={node.height / 2 + 8}
+        x={leafWidth / 2}
+        y={leafHeight / 2 + 10}
         textAnchor="middle"
         fill="#FFFFFF"
-        fontSize="8"
+        fontSize="7"
         opacity="0.9"
-        style={{ fontFamily: "Cairo, sans-serif" }}
+        style={{
+          fontFamily: "Cairo, sans-serif",
+          textShadow: "0 1px 1px rgba(0,0,0,0.4)",
+        }}
+        className="select-none pointer-events-none"
       >
         {getStatusLabel(node.status)}
       </text>
