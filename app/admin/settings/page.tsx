@@ -1,35 +1,23 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Settings } from "lucide-react";
+import { ImportExportPanel } from "@/components/admin/ImportExportPanel";
+import { FileSpreadsheet } from "lucide-react";
 
 export default function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-dark-bg">إعدادات النظام</h1>
 
-      <Card className="bg-white border-gold-500/20 shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-dark-bg flex items-center gap-2">
-            <Settings className="w-6 h-6 text-gold-500" />
-            إعدادات عامة
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-4 bg-heritage-bg rounded-lg">
-              <span className="font-bold text-dark-bg">الإصدار</span>
-              <span className="text-gray-600">1.0.0</span>
-            </div>
-            <div className="flex justify-between items-center p-4 bg-heritage-bg rounded-lg">
-              <span className="font-bold text-dark-bg">إجمالي الأشخاص</span>
-              <span className="text-gray-600">5</span>
-            </div>
-            <div className="flex justify-between items-center p-4 bg-heritage-bg rounded-lg">
-              <span className="font-bold text-dark-bg">المطور</span>
-              <span className="text-gray-600">Mohamed Abdalwhab</span>
-            </div>
+      <div className="bg-white rounded-xl p-6 border border-gold-500/20 shadow-lg">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-full bg-dark-bg flex items-center justify-center">
+            <FileSpreadsheet className="w-6 h-6 text-gold-500" />
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <h2 className="text-2xl font-bold text-dark-bg">إدارة البيانات</h2>
+            <p className="text-sm text-gray-600">استيراد وتصدير البيانات</p>
+          </div>
+        </div>
+        <ImportExportPanel />
+      </div>
     </div>
   );
 }
