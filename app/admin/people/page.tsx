@@ -10,6 +10,7 @@ export default async function AdminPeoplePage() {
     redirect("/admin/dashboard");
   }
 
+  // جلب الأشخاص النشطين فقط (بدون المحذوفين)
   const people = await db.person.findMany({
     where: { deletedAt: null },
     include: {
@@ -21,8 +22,17 @@ export default async function AdminPeoplePage() {
   });
 
   const branches = await db.branch.findMany();
+
+  // ⚠️ الإصلاح: جلب الأشخاص النشطين فقط لقائمة الأب
   const allPeople = await db.person.findMany({
-    select: { id: true, fullName: true, gender: true, fatherId: true, status: true },
+    where: { deletedAt: null }, // ← هذا هو الإصلاح
+    select: {
+      id: true,
+      fullName: true,
+      gender: true,
+      fatherId: true,
+      status: true,
+    },
   });
 
   return (
