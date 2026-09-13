@@ -17,8 +17,8 @@ interface TreeCanvasProps {
 // =====================================================
 const LEAF_WIDTH = 95;
 const LEAF_HEIGHT = 52;
-const LEVEL_HEIGHT = 200;      // المسافة بين الأجيال
-const SIBLING_SPACING = 110;   // المسافة بين الأخوة
+const LEVEL_HEIGHT = 200;
+const SIBLING_SPACING = 110;
 
 // =====================================================
 // خوارزمية التخطيط
@@ -226,120 +226,140 @@ export function TreeCanvas({
   const trunkBottomY = rootY + LEAF_HEIGHT / 2 + 100;
   const trunkTopY = rootY + LEAF_HEIGHT / 2 - 20;
   const trunkHeight = trunkBottomY - trunkTopY;
+  const groundY = trunkBottomY + 20; // خط الأرض (النجيلة)
 
-  // ===== حساب الفروع الرئيسية (فرعين من الجذع) =====
+  // ===== حساب الفروع الرئيسية (شعبة لكل ابن من أبناء الجذر) =====
   const mainBranches = useMemo(() => {
     const branches: { startX: number; startY: number; endX: number; endY: number; }[] = [];
 
-    // الحصول على جميع العقد في الجيل الثاني (عمق 1)
-    const gen1 = layoutNodes.filter((n) => n.depth === 1);
+    // الحصول على أبناء الجذر
+    const root = layoutNodes.find((n) => !n.fatherId);
+    if (!root) return branches;
 
-    // إذا كان هناك أكثر من ابن للجذر، نقسمهم بين فرعين
-    if (gen1.length > 0) {
-      // الفرع الأيسر - أول نصف من الجيل الأول
-      const leftHalf = gen1.slice(0, Math.ceil(gen1.length / 2));
-      const rightHalf = gen1.slice(Math.ceil(gen1.length / 2));
+    const rootChildren = layoutNodes.filter((n) => n.fatherId === root.id);
 
-      // حساب متوسط X لكل فرع
-      if (leftHalf.length > 0) {
-        const avgX = leftHalf.reduce((sum, n) => sum + n.x, 0) / leftHalf.length;
-        const avgY = leftHalf.reduce((sum, n) => sum + n.y, 0) / leftHalf.length;
-        branches.push({
-          startX: rootX,
-          startY: trunkTopY + 40,
-          endX: avgX,
-          endY: avgY + LEAF_HEIGHT / 2,
-        });
-      }
-
-      if (rightHalf.length > 0) {
-        const avgX = rightHalf.reduce((sum, n) => sum + n.x, 0) / rightHalf.length;
-        const avgY = rightHalf.reduce((sum, n) => sum + n.y, 0) / rightHalf.length;
-        branches.push({
-          startX: rootX,
-          startY: trunkTopY + 40,
-          endX: avgX,
-          endY: avgY + LEAF_HEIGHT / 2,
-        });
-      }
-    }
+    // شعبة لكل ابن
+    rootChildren.forEach((child) => {
+      branches.push({
+        startX: rootX,
+        startY: trunkTopY + 20,
+        endX: child.x,
+        endY: child.y + LEAF_HEIGHT / 2,
+      });
+    });
 
     return branches;
   }, [layoutNodes, rootX, trunkTopY]);
 
+  // ===== رسم النجيلة (خط الأرض) =====
+  const renderGround = () => (
+    <g>
+      {/* الأرض الخضراء */}
+      <rect
+        x={treeBounds.minX - 300}
+        y={groundY}
+        width={treeBounds.maxX - treeBounds.minX + 600}
+        height="200"
+        fill="url(#groundGrad)"
+      />
+      {/* موجة العشب */}
+      <path
+        d={`M ${treeBounds.minX - 300} ${groundY}
+           Q ${treeBounds.minX - 150} ${groundY - 8}, ${treeBounds.minX} ${groundY}
+           Q ${treeBounds.minX + 150} ${groundY + 8}, ${treeBounds.minX + 300} ${groundY}
+           Q ${treeBounds.minX + 450} ${groundY - 8}, ${treeBounds.minX + 600} ${groundY}
+           L ${treeBounds.maxX + 300} ${groundY}
+           L ${treeBounds.maxX + 300} ${groundY + 200}
+           L ${treeBounds.minX - 300} ${groundY + 200} Z`}
+        fill="url(#groundGrad)"
+      />
+      {/* خطوط العشب */}
+      {[...Array(60)].map((_, i) => {
+        const x = treeBounds.minX - 300 + i * 60;
+        return (
+          <path
+            key={i}
+            d={`M ${x} ${groundY} Q ${x + 5} ${groundY - 10}, ${x + 10} ${groundY - 15}`}
+            stroke="#4A7D3F"
+            strokeWidth="1.5"
+            fill="none"
+            opacity="0.5"
+          />
+        );
+      })}
+    </g>
+  );
+
   // ===== رسم الجذع =====
   const renderTrunk = () => (
     <g>
+      {/* ظل الجذع على الأرض */}
+      <ellipse cx={rootX} cy={groundY - 5} rx="140" ry="25" fill="#2A1506" opacity="0.2" />
+
+      {/* الجذور */}
+      <path
+        d={`M ${rootX - 110} ${trunkBottomY - 10}
+           C ${rootX - 145} ${trunkBottomY + 15}, ${rootX - 115} ${trunkBottomY + 30}, ${rootX - 85} ${trunkBottomY - 5}
+           L ${rootX - 55} ${trunkBottomY - 20} Z`}
+        fill="#3D1F0A"
+        stroke="#2A1506"
+        strokeWidth="1.5"
+      />
+      <path
+        d={`M ${rootX + 110} ${trunkBottomY - 10}
+           C ${rootX + 145} ${trunkBottomY + 15}, ${rootX + 115} ${trunkBottomY + 30}, ${rootX + 85} ${trunkBottomY - 5}
+           L ${rootX + 55} ${trunkBottomY - 20} Z`}
+        fill="#3D1F0A"
+        stroke="#2A1506"
+        strokeWidth="1.5"
+      />
+
       {/* ظل الجذع */}
-      <ellipse cx={rootX} cy={trunkBottomY + 10} rx="130" ry="18" fill="#000" opacity="0.18" />
-
-      {/* الجذور (في الأسفل) */}
       <path
-        d={`M ${rootX - 100} ${trunkBottomY - 10}
-           C ${rootX - 130} ${trunkBottomY + 15}, ${rootX - 100} ${trunkBottomY + 25}, ${rootX - 75} ${trunkBottomY - 5}
-           L ${rootX - 50} ${trunkBottomY - 20} Z`}
-        fill="#3D1F0A"
-        stroke="#2A1506"
-        strokeWidth="1.5"
-      />
-      <path
-        d={`M ${rootX + 100} ${trunkBottomY - 10}
-           C ${rootX + 130} ${trunkBottomY + 15}, ${rootX + 100} ${trunkBottomY + 25}, ${rootX + 75} ${trunkBottomY - 5}
-           L ${rootX + 50} ${trunkBottomY - 20} Z`}
-        fill="#3D1F0A"
-        stroke="#2A1506"
-        strokeWidth="1.5"
-      />
-
-      {/* الجذع الرئيسي - طبقات */}
-      {/* الطبقة الخارجية (الظل) */}
-      <path
-        d={`M ${rootX - 110} ${trunkBottomY}
-           C ${rootX - 100} ${trunkBottomY - 50},
-             ${rootX - 55} ${trunkTopY + 60},
-             ${rootX - 35} ${trunkTopY}
-           L ${rootX + 35} ${trunkTopY}
-           C ${rootX + 55} ${trunkTopY + 60},
-             ${rootX + 100} ${trunkBottomY - 50},
-             ${rootX + 110} ${trunkBottomY} Z`}
+        d={`M ${rootX - 115} ${trunkBottomY}
+           C ${rootX - 105} ${trunkBottomY - 50},
+             ${rootX - 60} ${trunkTopY + 60},
+             ${rootX - 40} ${trunkTopY}
+           L ${rootX + 40} ${trunkTopY}
+           C ${rootX + 60} ${trunkTopY + 60},
+             ${rootX + 105} ${trunkBottomY - 50},
+             ${rootX + 115} ${trunkBottomY} Z`}
         fill="#2A1506"
         opacity="0.3"
-        transform="translate(3, 3)"
+        transform="translate(4, 4)"
       />
 
       {/* الجذع الرئيسي */}
       <path
-        d={`M ${rootX - 110} ${trunkBottomY}
-           C ${rootX - 100} ${trunkBottomY - 50},
-             ${rootX - 55} ${trunkTopY + 60},
-             ${rootX - 35} ${trunkTopY}
-           L ${rootX + 35} ${trunkTopY}
-           C ${rootX + 55} ${trunkTopY + 60},
-             ${rootX + 100} ${trunkBottomY - 50},
-             ${rootX + 110} ${trunkBottomY} Z`}
+        d={`M ${rootX - 115} ${trunkBottomY}
+           C ${rootX - 105} ${trunkBottomY - 50},
+             ${rootX - 60} ${trunkTopY + 60},
+             ${rootX - 40} ${trunkTopY}
+           L ${rootX + 40} ${trunkTopY}
+           C ${rootX + 60} ${trunkTopY + 60},
+             ${rootX + 105} ${trunkBottomY - 50},
+             ${rootX + 115} ${trunkBottomY} Z`}
         fill="url(#trunkGrad)"
         stroke="#2A1506"
         strokeWidth="2"
       />
 
-      {/* خطوط الجذع الداخلية (تفاصيل) */}
-      {[...Array(5)].map((_, i) => {
-        const yOffset = (trunkHeight / 6) * (i + 1);
-        const xOff = 40 - i * 5;
+      {/* خطوط الجذع الداخلية */}
+      {[...Array(6)].map((_, i) => {
+        const yOffset = (trunkHeight / 7) * (i + 1);
+        const xOff = 50 - i * 6;
         return (
           <path
             key={i}
             d={`M ${rootX - xOff} ${trunkBottomY - yOffset}
-               Q ${rootX - xOff / 2} ${trunkBottomY - yOffset - 10} ${rootX} ${trunkBottomY - yOffset - 5}`}
+               Q ${rootX - xOff / 2} ${trunkBottomY - yOffset - 12} ${rootX} ${trunkBottomY - yOffset - 6}`}
             stroke="#2A1506"
-            strokeWidth="1"
+            strokeWidth="1.2"
             fill="none"
-            opacity="0.4"
+            opacity="0.35"
           />
         );
       })}
-
-      {/* الخط العمودي في المنتصف */}
       <path
         d={`M ${rootX} ${trunkBottomY - 10} L ${rootX} ${trunkTopY + 10}`}
         stroke="#2A1506"
@@ -348,48 +368,55 @@ export function TreeCanvas({
         opacity="0.3"
       />
 
-      {/* نقطة التقاء الفروع في قمة الجذع */}
-      <ellipse cx={rootX} cy={trunkTopY + 20} rx="50" ry="20" fill="#5D3A1A" />
-      <ellipse cx={rootX} cy={trunkTopY + 20} rx="50" ry="20" fill="none" stroke="#2A1506" strokeWidth="1" />
+      {/* نقطة التقاء الفروع */}
+      <ellipse cx={rootX} cy={trunkTopY + 20} rx="55" ry="22" fill="#5D3A1A" />
+      <ellipse cx={rootX} cy={trunkTopY + 20} rx="55" ry="22" fill="none" stroke="#2A1506" strokeWidth="1.5" />
+      <ellipse cx={rootX} cy={trunkTopY + 15} rx="35" ry="12" fill="#7A4F28" opacity="0.6" />
     </g>
   );
 
-  // ===== رسم الفروع الرئيسية =====
+  // ===== رسم الفروع الرئيسية (شعبة لكل ابن) =====
   const renderMainBranches = () => {
     return mainBranches.map((branch, i) => {
+      // منحنى بيزير لكل فرع
+      const midX = (branch.startX + branch.endX) / 2;
+      const midY = (branch.startY + branch.endY) / 2;
       const path = `M ${branch.startX} ${branch.startY}
-                   C ${branch.startX} ${branch.startY - 30},
-                     ${branch.endX} ${branch.endY + 30},
-                     ${branch.endX} ${branch.endY}`;
+                   Q ${midX} ${midY - 30}, ${branch.endX} ${branch.endY}`;
+
+      // سماكة الفرع حسب عدد الأحفاد
+      const thickness = 8;
+
       return (
         <g key={`main-branch-${i}`}>
           {/* الظل */}
-          <path d={path} fill="none" stroke="#2A1506" strokeWidth={12} strokeLinecap="round" opacity={0.2} transform="translate(2,2)" />
+          <path d={path} fill="none" stroke="#2A1506" strokeWidth={thickness + 4} strokeLinecap="round" opacity={0.2} transform="translate(3,3)" />
           {/* الفرع */}
-          <path d={path} fill="none" stroke="#5D3A1A" strokeWidth={10} strokeLinecap="round" />
+          <path d={path} fill="none" stroke="#5D3A1A" strokeWidth={thickness} strokeLinecap="round" />
           {/* إضاءة */}
-          <path d={path} fill="none" stroke="#8B5A2B" strokeWidth={4} strokeLinecap="round" opacity={0.6} />
+          <path d={path} fill="none" stroke="#8B5A2B" strokeWidth={thickness / 3} strokeLinecap="round" opacity={0.6} />
         </g>
       );
     });
   };
 
-  // ===== رسم الفروع الثانوية (بين الأجيال) =====
+  // ===== رسم الفروع الثانوية =====
   const renderBranches = () => {
     return layoutNodes.flatMap((node) => {
       const children = layoutNodes.filter((child) => child.fatherId === node.id);
+      // استبعاد أبناء الجذر (لأنهم لهم فروع رئيسية)
+      if (!node.fatherId) return [];
+
       return children.map((child) => {
         const startX = node.x;
         const startY = node.y + LEAF_HEIGHT / 2;
         const endX = child.x;
         const endY = child.y - LEAF_HEIGHT / 2;
-
-        const ctrl1Y = startY + (endY - startY) * 0.3;
-        const ctrl2Y = startY + (endY - startY) * 0.7;
+        const midY = (startY + endY) / 2;
 
         const path = `M ${startX} ${startY}
-                     C ${startX} ${ctrl1Y},
-                       ${endX} ${ctrl2Y},
+                     C ${startX} ${midY},
+                       ${endX} ${midY},
                        ${endX} ${endY}`;
 
         return (
@@ -422,7 +449,7 @@ export function TreeCanvas({
             transition: "filter 0.3s ease",
           }}
         >
-          {/* شكل الورقة (بيضاوي مدبب كالصورة) */}
+          {/* شكل الورقة */}
           <path
             d={`M ${LEAF_WIDTH / 2} 2
                C ${LEAF_WIDTH * 0.85} ${LEAF_HEIGHT * 0.15},
@@ -435,8 +462,7 @@ export function TreeCanvas({
             stroke={isSelected ? "#FFD700" : colors.stroke}
             strokeWidth={isSelected ? 3 : 1.5}
           />
-
-          {/* لمعة علوية */}
+          {/* لمعة */}
           <path
             d={`M ${LEAF_WIDTH / 2} 6
                C ${LEAF_WIDTH * 0.7} ${LEAF_HEIGHT * 0.25},
@@ -448,33 +474,15 @@ export function TreeCanvas({
             fill={colors.fillLight}
             opacity="0.4"
           />
-
           {/* عرق مركزي */}
-          <path
-            d={`M ${LEAF_WIDTH / 2} 5 L ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 5}`}
-            stroke={colors.vein}
-            strokeWidth="1"
-            opacity="0.6"
-          />
-
+          <path d={`M ${LEAF_WIDTH / 2} 5 L ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 5}`} stroke={colors.vein} strokeWidth="1" opacity="0.6" />
           {/* عروق جانبية */}
           {[0.35, 0.55, 0.75].map((ratio, i) => (
             <g key={i}>
-              <path
-                d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * ratio} L ${LEAF_WIDTH * 0.78} ${LEAF_HEIGHT * (ratio - 0.08)}`}
-                stroke={colors.vein}
-                strokeWidth="0.6"
-                opacity="0.4"
-              />
-              <path
-                d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * ratio} L ${LEAF_WIDTH * 0.22} ${LEAF_HEIGHT * (ratio - 0.08)}`}
-                stroke={colors.vein}
-                strokeWidth="0.6"
-                opacity="0.4"
-              />
+              <path d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * ratio} L ${LEAF_WIDTH * 0.78} ${LEAF_HEIGHT * (ratio - 0.08)}`} stroke={colors.vein} strokeWidth="0.6" opacity="0.4" />
+              <path d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * ratio} L ${LEAF_WIDTH * 0.22} ${LEAF_HEIGHT * (ratio - 0.08)}`} stroke={colors.vein} strokeWidth="0.6" opacity="0.4" />
             </g>
           ))}
-
           {/* الاسم */}
           <text
             x={LEAF_WIDTH / 2}
@@ -483,16 +491,11 @@ export function TreeCanvas({
             fill="#FFFFFF"
             fontSize="11"
             fontWeight="bold"
-            style={{
-              fontFamily: "Amiri, serif",
-              textShadow: "0 1px 3px rgba(0,0,0,0.7)",
-              paintOrder: "stroke",
-            }}
+            style={{ fontFamily: "Amiri, serif", textShadow: "0 1px 3px rgba(0,0,0,0.7)", paintOrder: "stroke" }}
             className="select-none pointer-events-none"
           >
             {truncateName(node.fullName, 15)}
           </text>
-
           {/* الحالة */}
           <text
             x={LEAF_WIDTH / 2}
@@ -501,10 +504,7 @@ export function TreeCanvas({
             fill="#FFFFFF"
             fontSize="8"
             opacity="0.9"
-            style={{
-              fontFamily: "Cairo, sans-serif",
-              textShadow: "0 1px 2px rgba(0,0,0,0.6)",
-            }}
+            style={{ fontFamily: "Cairo, sans-serif", textShadow: "0 1px 2px rgba(0,0,0,0.6)" }}
             className="select-none pointer-events-none"
           >
             {getStatusLabel(node.status)}
@@ -520,7 +520,6 @@ export function TreeCanvas({
       <div className="absolute inset-0 pointer-events-none z-10 m-3">
         <div className="absolute inset-0 border-4 border-double border-gold-500/50 rounded-2xl" />
         <div className="absolute inset-3 border border-gold-500/30 rounded-xl" />
-        {/* زخارف في الزوايا */}
         <div className="absolute top-3 left-3 w-8 h-8 border-t-2 border-l-2 border-gold-500 rounded-tl-lg" />
         <div className="absolute top-3 right-3 w-8 h-8 border-t-2 border-r-2 border-gold-500 rounded-tr-lg" />
         <div className="absolute bottom-3 left-3 w-8 h-8 border-b-2 border-l-2 border-gold-500 rounded-bl-lg" />
@@ -581,18 +580,20 @@ export function TreeCanvas({
           >
             {/* الخلفية */}
             <defs>
-              <radialGradient id="bgGradient" cx="50%" cy="40%" r="80%">
-                <stop offset="0%" stopColor="#FFFDF5" />
+              {/* تدرج الخلفية (كريمي فاتح مثل الصورة) */}
+              <radialGradient id="bgGradient" cx="50%" cy="30%" r="90%">
+                <stop offset="0%" stopColor="#FFFEF8" />
                 <stop offset="50%" stopColor="#FDFBF3" />
                 <stop offset="100%" stopColor="#F5EFE0" />
               </radialGradient>
 
-              {/* زخرفة إسلامية */}
-              <pattern id="islamicPattern" x="0" y="0" width="100" height="100" patternUnits="userSpaceOnUse">
-                <path d="M50 0 L100 50 L50 100 L0 50 Z" fill="none" stroke="#C9A227" strokeWidth="0.5" opacity="0.15" />
-                <circle cx="50" cy="50" r="25" fill="none" stroke="#C9A227" strokeWidth="0.5" opacity="0.12" />
-                <circle cx="50" cy="50" r="4" fill="#C9A227" opacity="0.15" />
-                <path d="M50 25 L50 75 M25 50 L75 50" stroke="#C9A227" strokeWidth="0.3" opacity="0.1" />
+              {/* زخرفة إسلامية (كما في الصورة) */}
+              <pattern id="islamicPattern" x="0" y="0" width="120" height="120" patternUnits="userSpaceOnUse">
+                <path d="M60 0 L120 60 L60 120 L0 60 Z" fill="none" stroke="#C9A227" strokeWidth="0.4" opacity="0.12" />
+                <circle cx="60" cy="60" r="30" fill="none" stroke="#C9A227" strokeWidth="0.4" opacity="0.1" />
+                <circle cx="60" cy="60" r="5" fill="#C9A227" opacity="0.12" />
+                <path d="M60 30 L60 90 M30 60 L90 60" stroke="#C9A227" strokeWidth="0.3" opacity="0.08" />
+                <path d="M60 30 L90 60 L60 90 L30 60 Z" fill="none" stroke="#C9A227" strokeWidth="0.3" opacity="0.1" />
               </pattern>
 
               {/* تدرج الجذع */}
@@ -604,9 +605,16 @@ export function TreeCanvas({
                 <stop offset="100%" stopColor="#2A1506" />
               </linearGradient>
 
+              {/* تدرج الأرض (النجيلة) */}
+              <linearGradient id="groundGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#7BC96F" />
+                <stop offset="40%" stopColor="#5DA84F" />
+                <stop offset="100%" stopColor="#3D7A2F" />
+              </linearGradient>
+
               {/* توهج ذهبي */}
               <radialGradient id="glow" cx="50%" cy="70%" r="50%">
-                <stop offset="0%" stopColor="#C9A227" stopOpacity="0.1" />
+                <stop offset="0%" stopColor="#C9A227" stopOpacity="0.08" />
                 <stop offset="100%" stopColor="#C9A227" stopOpacity="0" />
               </radialGradient>
             </defs>
@@ -616,20 +624,13 @@ export function TreeCanvas({
             <rect width="100%" height="100%" fill="url(#islamicPattern)" />
             <rect width="100%" height="100%" fill="url(#glow)" />
 
-            {/* الخط الأفقي (الأرض) */}
-            <rect
-              x={treeBounds.minX - 200}
-              y={trunkBottomY + 5}
-              width={treeBounds.maxX - treeBounds.minX + 400}
-              height="4"
-              fill="#8B7355"
-              opacity="0.3"
-            />
+            {/* ===== النجيلة (خط الأرض) ===== */}
+            {renderGround()}
 
             {/* ===== الجذع ===== */}
             {renderTrunk()}
 
-            {/* ===== الفروع الرئيسية ===== */}
+            {/* ===== الفروع الرئيسية (شعبة لكل ابن) ===== */}
             {renderMainBranches()}
 
             {/* ===== الفروع الثانوية ===== */}
@@ -641,7 +642,7 @@ export function TreeCanvas({
         </div>
       </div>
 
-      {/* عداد الأشخاص */}
+      {/* عداد */}
       <div className="absolute bottom-6 right-6 z-20 bg-dark-bg/90 backdrop-blur-md text-white px-4 py-2 rounded-xl shadow-xl border border-gold-500/30">
         <span className="text-xs text-gold-500">الأشخاص:</span>
         <span className="font-bold mr-2 text-lg">{layoutNodes.length}</span>
