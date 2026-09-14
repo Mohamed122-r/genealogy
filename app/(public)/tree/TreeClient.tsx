@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { TreePine } from "lucide-react";
 import { TreeCanvas } from "@/components/tree/TreeCanvas";
+import { ExportMenu } from "@/components/tree/ExportMenu";
 import { PersonNode } from "@/types/tree";
 
 interface TreeClientProps {
@@ -15,8 +16,9 @@ export function TreeClient({ nodes }: TreeClientProps) {
 
   return (
     <div className="min-h-screen bg-heritage-bg">
+      {/* الهيدر */}
       <div className="bg-dark-bg text-white py-4 md:py-6">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-gold-500 flex items-center justify-center shadow-lg">
               <TreePine className="w-7 h-7 text-dark-bg" />
@@ -30,9 +32,13 @@ export function TreeClient({ nodes }: TreeClientProps) {
               </p>
             </div>
           </div>
+
+          {/* زر التصدير */}
+          <ExportMenu svgRef={svgRef} treeTitle="شجرة-النسب-العائلية" />
         </div>
       </div>
 
+      {/* الشجرة */}
       <div className="container mx-auto px-2 md:px-4 py-4 md:py-6">
         <div className="bg-white rounded-2xl border border-gold-500/30 shadow-2xl overflow-hidden">
           {nodes.length === 0 ? (
