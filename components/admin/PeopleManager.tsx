@@ -50,41 +50,29 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
   const [filterGeneration, setFilterGeneration] = useState<string>("all");
   const router = useRouter();
 
-  // =====================================================
-  // حساب الجيل (Generation) لكل شخص
-  // =====================================================
+  // حساب الجيل لكل شخص
   const peopleWithGeneration = useMemo(() => {
     const genMap = new Map<string, number>();
-
     function getGeneration(personId: string): number {
       if (genMap.has(personId)) return genMap.get(personId)!;
-
       const person = allPeople.find((p) => p.id === personId);
       if (!person || !person.fatherId) {
         genMap.set(personId, 0);
         return 0;
       }
-
       const gen = getGeneration(person.fatherId) + 1;
       genMap.set(personId, gen);
       return gen;
     }
-
     allPeople.forEach((p) => getGeneration(p.id));
-
-    return allPeople.map((p) => ({
-      ...p,
-      generation: genMap.get(p.id) || 0,
-    }));
+    return allPeople.map((p) => ({ ...p, generation: genMap.get(p.id) || 0 }));
   }, [allPeople]);
 
-  // قائمة الأجيال المتوفرة
   const availableGenerations = useMemo(() => {
     const gens = new Set(peopleWithGeneration.map((p) => p.generation));
     return Array.from(gens).sort((a, b) => a - b);
   }, [peopleWithGeneration]);
 
-  // فلترة الأشخاص حسب الجيل المختار
   const filteredPeople = useMemo(() => {
     if (filterGeneration === "all") return people;
     return people.filter((p) => {
@@ -93,28 +81,7 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
     });
   }, [people, filterGeneration, peopleWithGeneration]);
 
-  // الأباء المتاحون للاختيار (من الجيل السابق فقط)
-  const availableFathers = useMemo(() => {
-    if (!editingPerson) {
-      // إضافة شخص جديد - اعرض كل الرجال
-      return peopleWithGeneration.filter((p) => p.gender === "MALE");
-    }
-
-    // تعديل شخص - استبعد نفسه وأبناءه
-    const personGen = peopleWithGeneration.find((pg) => pg.id === editingPerson.id)?.generation || 0;
-
-    return peopleWithGeneration.filter((p) => {
-      if (p.id === editingPerson.id) return false;
-      if (p.gender !== "MALE") return false;
-      // يجب أن يكون من جيل سابق
-      if (p.generation >= personGen) return false;
-      return true;
-    });
-  }, [peopleWithGeneration, editingPerson]);
-
-  // =====================================================
   // بيانات النموذج
-  // =====================================================
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -125,7 +92,31 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
     birthDate: "",
     deathDate: "",
     notes: "",
+    generation: "",
   });
+
+  // فلترة الآباء حسب الجيل
+  const availableFathers = useMemo(() => {
+    if (!isModalOpen) return [];
+
+    const selectedGen = formData.generation ? Number(formData.generation) : null;
+
+    return peopleWithGeneration
+      .filter((p) => {
+        if (p.gender !== "MALE") return false;
+        if (editingPerson && p.id === editingPerson.id) return false;
+
+        if (editingPerson) {
+          const personGen = peopleWithGeneration.find((pg) => pg.id === editingPerson.id)?.generation || 0;
+          if (p.generation >= personGen) return false;
+        } else if (selectedGen !== null) {
+          if (p.generation !== selectedGen - 1) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => a.generation - b.generation);
+  }, [peopleWithGeneration, editingPerson, formData.generation, isModalOpen]);
 
   function openCreateModal() {
     setEditingPerson(null);
@@ -139,12 +130,14 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
       birthDate: "",
       deathDate: "",
       notes: "",
+      generation: "",
     });
     setError("");
     setIsModalOpen(true);
   }
 
   function openEditModal(person: Person) {
+    const personGen = peopleWithGeneration.find((p) => p.id === person.id)?.generation || 0;
     setEditingPerson(person);
     setFormData({
       firstName: person.firstName,
@@ -156,6 +149,7 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
       birthDate: person.birthDate ? new Date(person.birthDate).toISOString().split("T")[0] : "",
       deathDate: person.deathDate ? new Date(person.deathDate).toISOString().split("T")[0] : "",
       notes: person.notes || "",
+      generation: String(personGen),
     });
     setError("");
     setIsModalOpen(true);
@@ -167,9 +161,7 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
     setError("");
 
     try {
-      const url = editingPerson
-        ? `/api/admin/people/${editingPerson.id}`
-        : "/api/admin/people";
+      const url = editingPerson ? `/api/admin/people/${editingPerson.id}` : "/api/admin/people";
       const method = editingPerson ? "PUT" : "POST";
 
       const response = await fetch(url, {
@@ -196,46 +188,32 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
 
   async function handleDelete(id: string) {
     if (!confirm("هل أنت متأكد من حذف هذا الشخص؟")) return;
-
     try {
-      const response = await fetch(`/api/admin/people/${id}`, {
-        method: "DELETE",
-      });
-
+      const response = await fetch(`/api/admin/people/${id}`, { method: "DELETE" });
       if (!response.ok) {
         const result = await response.json();
         alert(result.error || "حدث خطأ");
         return;
       }
-
       window.location.reload();
     } catch (err) {
       alert("حدث خطأ في الاتصال");
     }
   }
 
-  // الحصول على اسم الجيل
   function getGenerationName(gen: number): string {
     if (gen === 0) return "الجيل الأول (الجذور)";
     return `الجيل ${gen + 1}`;
   }
 
-  // =====================================================
-  // واجهة المستخدم
-  // =====================================================
   return (
     <div>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-dark-bg">إدارة الأشخاص</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            إجمالي: {people.length} شخص
-          </p>
+          <p className="text-sm text-gray-500 mt-1">إجمالي: {people.length} شخص</p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="bg-gold-500 text-dark-bg px-4 py-2 rounded-lg font-bold hover:bg-gold-600 flex items-center gap-2 transition"
-        >
+        <button onClick={openCreateModal} className="bg-gold-500 text-dark-bg px-4 py-2 rounded-lg font-bold hover:bg-gold-600 flex items-center gap-2 transition">
           <Plus className="w-5 h-5" />
           إضافة شخص
         </button>
@@ -248,30 +226,13 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
             <Filter className="w-5 h-5 text-gold-500" />
             <span>تصفية حسب الجيل:</span>
           </div>
-          <button
-            onClick={() => setFilterGeneration("all")}
-            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition ${
-              filterGeneration === "all"
-                ? "bg-dark-bg text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
+          <button onClick={() => setFilterGeneration("all")} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition ${filterGeneration === "all" ? "bg-dark-bg text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
             الكل ({people.length})
           </button>
           {availableGenerations.map((gen) => {
-            const count = peopleWithGeneration.filter(
-              (p) => p.generation === gen && people.some((person) => person.id === p.id)
-            ).length;
+            const count = peopleWithGeneration.filter((p) => p.generation === gen && people.some((person) => person.id === p.id)).length;
             return (
-              <button
-                key={gen}
-                onClick={() => setFilterGeneration(String(gen))}
-                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition ${
-                  filterGeneration === String(gen)
-                    ? "bg-gold-500 text-dark-bg"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
+              <button key={gen} onClick={() => setFilterGeneration(String(gen))} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition ${filterGeneration === String(gen) ? "bg-gold-500 text-dark-bg" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
                 {getGenerationName(gen)} ({count})
               </button>
             );
@@ -296,9 +257,7 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
           <tbody>
             {filteredPeople.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-12 text-gray-500">
-                  لا يوجد أشخاص في هذا الجيل
-                </td>
+                <td colSpan={7} className="text-center py-12 text-gray-500">لا يوجد أشخاص في هذا الجيل</td>
               </tr>
             ) : (
               filteredPeople.map((person) => {
@@ -306,47 +265,15 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
                 return (
                   <tr key={person.id} className="border-b border-gray-100 hover:bg-heritage-bg">
                     <td className="p-4 font-bold text-dark-bg">{person.fullName}</td>
-                    <td className="p-4">
-                      <span className="bg-gold-500/20 text-gold-700 px-3 py-1 rounded-full text-xs font-bold">
-                        {getGenerationName(gen)}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          person.status === "ALIVE"
-                            ? "bg-green-100 text-green-800"
-                            : person.status === "DECEASED"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {person.status === "ALIVE" ? "حي" : person.status === "DECEASED" ? "متوفى" : "غير معروف"}
-                      </span>
-                    </td>
+                    <td className="p-4"><span className="bg-gold-500/20 text-gold-700 px-3 py-1 rounded-full text-xs font-bold">{getGenerationName(gen)}</span></td>
+                    <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-bold ${person.status === "ALIVE" ? "bg-green-100 text-green-800" : person.status === "DECEASED" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-800"}`}>{person.status === "ALIVE" ? "حي" : person.status === "DECEASED" ? "متوفى" : "غير معروف"}</span></td>
                     <td className="p-4">{person.branch?.name || "-"}</td>
                     <td className="p-4">{person.father?.fullName || "جذر"}</td>
-                    <td className="p-4">
-                      <span className="bg-gold-500/20 text-gold-700 px-3 py-1 rounded-full text-xs font-bold">
-                        {person.children.length}
-                      </span>
-                    </td>
+                    <td className="p-4"><span className="bg-gold-500/20 text-gold-700 px-3 py-1 rounded-full text-xs font-bold">{person.children.length}</span></td>
                     <td className="p-4">
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => openEditModal(person)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                          title="تعديل"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(person.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                          title="حذف"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <button onClick={() => openEditModal(person)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="تعديل"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => handleDelete(person.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition" title="حذف"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -362,65 +289,35 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 sticky top-0 bg-white">
-              <h2 className="text-2xl font-bold text-dark-bg">
-                {editingPerson ? "تعديل شخص" : "إضافة شخص جديد"}
-              </h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
+              <h2 className="text-2xl font-bold text-dark-bg">{editingPerson ? "تعديل شخص" : "إضافة شخص جديد"}</h2>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
+              {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">{error}</div>}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-2">الاسم الأول *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                    placeholder="محمد"
-                  />
+                  <input type="text" required value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500" placeholder="محمد" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-2">اسم العائلة *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                    placeholder="القحطاني"
-                  />
+                  <input type="text" required value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500" placeholder="القحطاني" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-2">الجنس</label>
-                  <select
-                    value={formData.gender}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                  >
+                  <select value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500">
                     <option value="MALE">ذكر</option>
                     <option value="FEMALE">أنثى</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-2">الحالة</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                  >
+                  <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500">
                     <option value="ALIVE">حي</option>
                     <option value="DECEASED">متوفى</option>
                     <option value="DISCONNECTED">منقطع</option>
@@ -429,41 +326,37 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
                 </div>
               </div>
 
+              {/* الجيل */}
+              <div>
+                <label className="block text-sm font-bold mb-2">الجيل</label>
+                <select value={formData.generation} onChange={(e) => setFormData({ ...formData, generation: e.target.value, fatherId: "" })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500">
+                  <option value="">اختر الجيل أولاً</option>
+                  {availableGenerations.map((gen) => (
+                    <option key={gen} value={gen}>{getGenerationName(gen)}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">اختر الجيل لتصفية قائمة الآباء</p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-2">
                     الأب
-                    {editingPerson && <span className="text-xs text-gray-500 mr-2">(من الجيل السابق فقط)</span>}
+                    {formData.generation && <span className="text-xs text-gray-500 mr-2">(من الجيل السابق فقط)</span>}
                   </label>
-                  <select
-                    value={formData.fatherId}
-                    onChange={(e) => setFormData({ ...formData, fatherId: e.target.value })}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                  >
+                  <select value={formData.fatherId} onChange={(e) => setFormData({ ...formData, fatherId: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500">
                     <option value="">بدون أب (جذر الشجرة)</option>
                     {availableFathers.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.fullName} — {getGenerationName(p.generation)}
-                      </option>
+                      <option key={p.id} value={p.id}>{p.fullName} — {getGenerationName(p.generation)}</option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {availableFathers.length} شخص متاح
-                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{availableFathers.length} أب متاح</p>
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-2">الفرع</label>
-                  <select
-                    value={formData.branchId}
-                    onChange={(e) => setFormData({ ...formData, branchId: e.target.value })}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                  >
+                  <select value={formData.branchId} onChange={(e) => setFormData({ ...formData, branchId: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500">
                     <option value="">بدون فرع</option>
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
+                    {branches.map((b) => (<option key={b.id} value={b.id}>{b.name}</option>))}
                   </select>
                 </div>
               </div>
@@ -471,50 +364,22 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-2">تاريخ الميلاد</label>
-                  <input
-                    type="date"
-                    value={formData.birthDate}
-                    onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                  />
+                  <input type="date" value={formData.birthDate} onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-2">تاريخ الوفاة</label>
-                  <input
-                    type="date"
-                    value={formData.deathDate}
-                    onChange={(e) => setFormData({ ...formData, deathDate: e.target.value })}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                  />
+                  <input type="date" value={formData.deathDate} onChange={(e) => setFormData({ ...formData, deathDate: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500" />
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-bold mb-2">ملاحظات</label>
-                <textarea
-                  rows={3}
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                  placeholder="ملاحظات إضافية..."
-                />
+                <textarea rows={3} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500" placeholder="ملاحظات إضافية..." />
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-6 py-2 border border-gray-300 rounded-lg font-bold hover:bg-gray-50"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-6 py-2 bg-gold-500 text-dark-bg rounded-lg font-bold hover:bg-gold-600 disabled:opacity-50"
-                >
-                  {isLoading ? "جاري الحفظ..." : "حفظ"}
-                </button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2 border border-gray-300 rounded-lg font-bold hover:bg-gray-50">إلغاء</button>
+                <button type="submit" disabled={isLoading} className="px-6 py-2 bg-gold-500 text-dark-bg rounded-lg font-bold hover:bg-gold-600 disabled:opacity-50">{isLoading ? "جاري الحفظ..." : "حفظ"}</button>
               </div>
             </form>
           </div>
