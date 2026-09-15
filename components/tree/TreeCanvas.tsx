@@ -138,6 +138,7 @@ export function TreeCanvas({
   const trunkTopY = rootY + LEAF_HEIGHT / 2 - 10;
   const trunkBottomY = rootY + LEAF_HEIGHT / 2 + 150;
   const groundLineY = trunkBottomY + 15;
+  const trunkHeight = trunkBottomY - trunkTopY;
 
   // =====================================================
   // رسم العشب
@@ -175,8 +176,7 @@ export function TreeCanvas({
       <path d={`M ${rootX - 145} ${trunkBottomY} C ${rootX - 125} ${trunkBottomY - 110}, ${rootX - 85} ${trunkTopY + 110}, ${rootX - 55} ${trunkTopY} L ${rootX + 55} ${trunkTopY} C ${rootX + 85} ${trunkTopY + 110}, ${rootX + 125} ${trunkBottomY - 110}, ${rootX + 145} ${trunkBottomY} Z`} fill="url(#trunkGrad)" stroke="#2A1506" strokeWidth="2.5" />
 
       {[...Array(10)].map((_, i) => {
-        const totalH = trunkBottomY - trunkTopY;
-        const yOff = (totalH / 11) * (i + 1);
+        const yOff = (trunkHeight / 11) * (i + 1);
         const xOff = 95 - i * 8;
         return <path key={i} d={`M ${rootX - xOff} ${trunkBottomY - yOff} Q ${rootX - xOff / 2} ${trunkBottomY - yOff - 18} ${rootX} ${trunkBottomY - yOff - 10}`} stroke="#2A1506" strokeWidth="1.5" fill="none" opacity="0.4" />;
       })}
@@ -184,50 +184,68 @@ export function TreeCanvas({
   );
 
   // =====================================================
-  // رسم الفروع — بدون تداخل نهائياً (فروع عمودية)
+  // رسم الفروع — منحنية طبيعية بدون تقاطعات
   // =====================================================
   const renderBranches = () => {
     return layoutNodes.flatMap((node) => {
       const children = layoutNodes.filter((child) => child.fatherId === node.id);
       if (children.length === 0) return [];
 
-      return children.map((child) => {
-        const isRoot = !node.fatherId;
+      const isRoot = !node.fatherId;
 
-        const startX = isRoot ? rootX : node.x;
-        const startY = isRoot ? trunkTopY + 20 : node.y + LEAF_HEIGHT / 2 + 5;
+      return children.map((child, index) => {
+        // حساب نسبة الفرع من إجمالي الأبناء
+        const ratio = children.length > 1 ? index / (children.length - 1) : 0.5;
 
+        // نقطة البداية
+        // إذا كان الجذر: نوزع نقاط الانطلاق على طول الجذع
+        // إذا لم يكن: نبدأ من الأب مباشرة
+        let startX: number;
+        let startY: number;
+
+        if (isRoot) {
+          // توزيع نقاط الانطلاق على عرض الجذع
+          // من -40 إلى +40 بكسل من مركز الجذع
+          const trunkOffset = (ratio - 0.5) * 80;
+          startX = rootX + trunkOffset;
+          // نقطة الانطلاق على ارتفاع مختلف قليلاً لكل ابن
+          startY = trunkTopY + 20 + (index % 3) * 15;
+        } else {
+          startX = node.x;
+          startY = node.y + LEAF_HEIGHT / 2 + 5;
+        }
+
+        // نقطة النهاية
         const endX = child.x;
         const endY = child.y - LEAF_HEIGHT / 2 - 5;
 
-        const midY = (startY + endY) / 2;
+        // ===== منحنى بيزير طبيعي بدون تقاطعات =====
+        // الفكرة: كل فرع ينحني للخارج قليلاً ثم يعود
+        const dy = endY - startY;
+        const dx = endX - startX;
 
-        const radius = 15;
-        let path = "";
+        // نقاط التحكم:
+        // ctrl1: تخرج من الأب بشكل عمودي (مع انحراف بسيط)
+        // ctrl2: تتجه نحو الابن بشكل عمودي
+        const ctrl1X = startX + dx * 0.15;
+        const ctrl1Y = startY + dy * 0.4;
+        const ctrl2X = endX - dx * 0.15;
+        const ctrl2Y = endY - dy * 0.4;
 
-        if (Math.abs(endX - startX) < 5) {
-          path = `M ${startX} ${startY} L ${endX} ${endY}`;
-        } else {
-          const direction = endX > startX ? 1 : -1;
-          path = `
-            M ${startX} ${startY}
-            L ${startX} ${midY - radius}
-            Q ${startX} ${midY} ${startX + direction * radius} ${midY}
-            L ${endX - direction * radius} ${midY}
-            Q ${endX} ${midY} ${endX} ${midY + radius}
-            L ${endX} ${endY}
-          `;
-        }
+        const path = `M ${startX} ${startY} 
+                     C ${ctrl1X} ${ctrl1Y}, 
+                       ${ctrl2X} ${ctrl2Y}, 
+                       ${endX} ${endY}`;
 
         const thickness = isRoot ? 10 : 4;
 
         return (
           <g key={`${node.id}-${child.id}`}>
-            <path d={path} fill="none" stroke="#2A1506" strokeWidth={thickness + 3} strokeLinecap="round" strokeLinejoin="round" opacity={0.2} transform="translate(3,3)" />
-            <path d={path} fill="none" stroke="#5D3A1A" strokeWidth={thickness} strokeLinecap="round" strokeLinejoin="round" />
-            <path d={path} fill="none" stroke="#8B5A2B" strokeWidth={thickness / 2.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.7} />
+            <path d={path} fill="none" stroke="#2A1506" strokeWidth={thickness + 3} strokeLinecap="round" opacity={0.25} transform="translate(3,3)" />
+            <path d={path} fill="none" stroke="#5D3A1A" strokeWidth={thickness} strokeLinecap="round" />
+            <path d={path} fill="none" stroke="#8B5A2B" strokeWidth={thickness / 2.5} strokeLinecap="round" opacity={0.7} />
             {isRoot && (
-              <path d={path} fill="none" stroke="#A07040" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.5} />
+              <path d={path} fill="none" stroke="#A07040" strokeWidth={1.5} strokeLinecap="round" opacity={0.5} />
             )}
           </g>
         );
@@ -259,12 +277,6 @@ export function TreeCanvas({
             <path d={`M ${LEAF_WIDTH / 2} 6 C ${LEAF_WIDTH * 0.65} ${LEAF_HEIGHT * 0.25}, ${LEAF_WIDTH * 0.75} ${LEAF_HEIGHT * 0.4}, ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * 0.45} C ${LEAF_WIDTH * 0.35} ${LEAF_HEIGHT * 0.4}, ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.25}, ${LEAF_WIDTH / 2} 6 Z`} fill={colors.fillLight} opacity="0.5" />
             <path d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 6} C ${LEAF_WIDTH * 0.65} ${LEAF_HEIGHT * 0.75}, ${LEAF_WIDTH * 0.75} ${LEAF_HEIGHT * 0.6}, ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * 0.55} C ${LEAF_WIDTH * 0.35} ${LEAF_HEIGHT * 0.6}, ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.75}, ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 6} Z`} fill={colors.fillDark} opacity="0.4" />
             <path d={`M ${LEAF_WIDTH / 2} 4 L ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 4}`} stroke={colors.vein} strokeWidth="1" opacity="0.6" />
-            {[0.3, 0.5, 0.7].map((ratio, i) => (
-              <g key={i}>
-                <path d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * ratio} L ${LEAF_WIDTH * 0.8} ${LEAF_HEIGHT * (ratio - 0.07)}`} stroke={colors.vein} strokeWidth="0.6" opacity="0.45" />
-                <path d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * ratio} L ${LEAF_WIDTH * 0.2} ${LEAF_HEIGHT * (ratio - 0.07)}`} stroke={colors.vein} strokeWidth="0.6" opacity="0.45" />
-              </g>
-            ))}
             <text x={LEAF_WIDTH / 2} y={LEAF_HEIGHT / 2 - 2} textAnchor="middle" fill="#FFFFFF" fontSize="10.5" fontWeight="bold" style={{ fontFamily: "Amiri, serif", textShadow: "0 1px 3px rgba(0,0,0,0.8)" }} className="select-none pointer-events-none">
               {truncateName(node.fullName, 14)}
             </text>
