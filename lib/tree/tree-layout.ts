@@ -1,6 +1,6 @@
 import { PersonNode, LayoutNode, TreeLayoutOptions } from "@/types/tree";
 
-const HORIZONTAL_SPACING = 140;
+const HORIZONTAL_SPACING = 160;
 const VERTICAL_SPACING = 200;
 const LEAF_WIDTH = 90;
 const LEAF_HEIGHT = 55;
@@ -16,7 +16,6 @@ export function calculateTreeLayout(
 
   const layoutNodes: LayoutNode[] = [];
 
-  // حساب أقصى عمق
   function getMaxDepth(person: PersonNode, d: number = 0): number {
     const children = nodes.filter((n) => n.fatherId === person.id);
     if (children.length === 0) return d;
@@ -70,7 +69,6 @@ export function calculateTreeLayout(
     globalLeft = rootX + HORIZONTAL_SPACING;
   });
 
-  // إعادة ضبط الإحداثيات
   if (layoutNodes.length > 0) {
     const minX = Math.min(...layoutNodes.map((n) => n.x));
     layoutNodes.forEach((node) => {
