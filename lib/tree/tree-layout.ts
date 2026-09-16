@@ -1,7 +1,7 @@
 import { PersonNode, LayoutNode, TreeLayoutOptions } from "@/types/tree";
 
-const HORIZONTAL_SPACING = 160;
-const VERTICAL_SPACING = 200;
+const HORIZONTAL_SPACING = 120;
+const VERTICAL_SPACING = 140;
 const LEAF_WIDTH = 90;
 const LEAF_HEIGHT = 55;
 
@@ -24,7 +24,6 @@ export function calculateTreeLayout(
 
   const maxDepth = Math.max(...roots.map((r) => getMaxDepth(r)));
 
-  // دالة التخطيط: توزع الأبناء يمين ويسار
   function layoutSubtree(
     person: PersonNode,
     depth: number,
@@ -46,7 +45,6 @@ export function calculateTreeLayout(
       return centerX;
     }
 
-    // توزيع الأبناء: النصف يمين، النصف يسار
     const totalWidth = (children.length - 1) * HORIZONTAL_SPACING;
     const startX = centerX - totalWidth / 2;
 
@@ -61,7 +59,6 @@ export function calculateTreeLayout(
 
   let globalLeft = 0;
   roots.forEach((root) => {
-    // نحسب عرض الشجرة الفرعية أولاً
     const maxDepthForRoot = getMaxDepth(root);
     const totalLeaves = nodes.filter(
       (n) => !nodes.some((c) => c.fatherId === n.id)
