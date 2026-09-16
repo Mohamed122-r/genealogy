@@ -68,7 +68,7 @@ export function TreeCanvas({
   }, [layoutNodes]);
 
   useEffect(() => {
-    const padding = 250;
+    const padding = 200;
     setViewBox({
       x: treeBounds.minX - padding,
       y: treeBounds.minY - padding * 2,
@@ -93,7 +93,7 @@ export function TreeCanvas({
   };
 
   const resetView = () => {
-    const padding = 250;
+    const padding = 200;
     setZoomLevel(1);
     setViewBox({
       x: treeBounds.minX - padding,
@@ -135,7 +135,7 @@ export function TreeCanvas({
   const rootY = rootNodes.length > 0 ? rootNodes[0].y : treeBounds.maxY;
   
   const trunkTopY = rootY + LEAF_HEIGHT / 2 - 10;
-  const trunkBottomY = rootY + LEAF_HEIGHT / 2 + 150;
+  const trunkBottomY = rootY + LEAF_HEIGHT / 2 + 120;
   const groundLineY = trunkBottomY + 15;
   const trunkHeight = trunkBottomY - trunkTopY;
 
@@ -150,17 +150,19 @@ export function TreeCanvas({
   const renderTrunk = () => (
     <g>
       <ellipse cx={rootX} cy={groundLineY + 20} rx="200" ry="35" fill="#1A3814" opacity="0.35" />
-      <path d={`M ${rootX - 145} ${trunkBottomY} C ${rootX - 125} ${trunkBottomY - 110}, ${rootX - 85} ${trunkTopY + 110}, ${rootX - 55} ${trunkTopY} L ${rootX + 55} ${trunkTopY} C ${rootX + 85} ${trunkTopY + 110}, ${rootX + 125} ${trunkBottomY - 110}, ${rootX + 145} ${trunkBottomY} Z`} fill="url(#trunkGrad)" stroke="#2A1506" strokeWidth="2.5" />
-      {[...Array(10)].map((_, i) => {
-        const yOff = (trunkHeight / 11) * (i + 1);
-        const xOff = 95 - i * 8;
-        return <path key={i} d={`M ${rootX - xOff} ${trunkBottomY - yOff} Q ${rootX - xOff / 2} ${trunkBottomY - yOff - 18} ${rootX} ${trunkBottomY - yOff - 10}`} stroke="#2A1506" strokeWidth="1.5" fill="none" opacity="0.4" />;
+      <path d={`M ${rootX - 160} ${trunkBottomY - 10} C ${rootX - 230} ${trunkBottomY + 30}, ${rootX - 180} ${trunkBottomY + 55}, ${rootX - 110} ${trunkBottomY + 15} L ${rootX - 70} ${trunkBottomY - 15} Z`} fill="#3D1F0A" stroke="#2A1506" strokeWidth="2" />
+      <path d={`M ${rootX + 160} ${trunkBottomY - 10} C ${rootX + 230} ${trunkBottomY + 30}, ${rootX + 180} ${trunkBottomY + 55}, ${rootX + 110} ${trunkBottomY + 15} L ${rootX + 70} ${trunkBottomY - 15} Z`} fill="#3D1F0A" stroke="#2A1506" strokeWidth="2" />
+      <path d={`M ${rootX - 145} ${trunkBottomY} C ${rootX - 125} ${trunkBottomY - 100}, ${rootX - 85} ${trunkTopY + 100}, ${rootX - 55} ${trunkTopY} L ${rootX + 55} ${trunkTopY} C ${rootX + 85} ${trunkTopY + 100}, ${rootX + 125} ${trunkBottomY - 100}, ${rootX + 145} ${trunkBottomY} Z`} fill="url(#trunkGrad)" stroke="#2A1506" strokeWidth="2.5" />
+      {[...Array(8)].map((_, i) => {
+        const yOff = (trunkHeight / 9) * (i + 1);
+        const xOff = 90 - i * 8;
+        return <path key={i} d={`M ${rootX - xOff} ${trunkBottomY - yOff} Q ${rootX - xOff / 2} ${trunkBottomY - yOff - 15} ${rootX} ${trunkBottomY - yOff - 8}`} stroke="#2A1506" strokeWidth="1.5" fill="none" opacity="0.4" />;
       })}
     </g>
   );
 
   // =====================================================
-  // رسم الفروع — بنظام "غصن مركزي + تفرعات جانبية"
+  // رسم الفروع — قصيرة ومباشرة
   // =====================================================
   const renderBranches = () => {
     return layoutNodes.flatMap((node) => {
@@ -172,40 +174,31 @@ export function TreeCanvas({
       const startX = isRoot ? rootX : node.x;
       const startY = isRoot ? trunkTopY + 20 : node.y + LEAF_HEIGHT / 2 + 5;
 
-      // ترتيب الأبناء حسب الموقع الأفقي
-      const sortedChildren = [...children].sort((a, b) => a.x - b.x);
-
-      return sortedChildren.map((child, index) => {
+      return children.map((child) => {
         const endX = child.x;
         const endY = child.y - LEAF_HEIGHT / 2 - 5;
 
-        // منحنى طبيعي: يخرج من الأب، ينحني نحو الابن
+        // منحنى طبيعي مع نقاط تحكم قريبة
         const dy = endY - startY;
-        const dx = endX - startX;
 
-        // نقطة تحكم 1: تخرج من الأب
         const ctrl1X = startX;
-        const ctrl1Y = startY + dy * 0.4;
+        const ctrl1Y = startY + dy * 0.5;
 
-        // نقطة تحكم 2: تتجه نحو الابن (بشكل عمودي)
         const ctrl2X = endX;
-        const ctrl2Y = endY - dy * 0.4;
+        const ctrl2Y = endY - dy * 0.5;
 
         const path = `M ${startX} ${startY} 
                      C ${ctrl1X} ${ctrl1Y}, 
                        ${ctrl2X} ${ctrl2Y}, 
                        ${endX} ${endY}`;
 
-        const thickness = isRoot ? 12 : 5;
+        const thickness = isRoot ? 10 : 4;
 
         return (
           <g key={`${node.id}-${child.id}`}>
             <path d={path} fill="none" stroke="#2A1506" strokeWidth={thickness + 3} strokeLinecap="round" opacity={0.25} transform="translate(3,3)" />
             <path d={path} fill="none" stroke="#5D3A1A" strokeWidth={thickness} strokeLinecap="round" />
             <path d={path} fill="none" stroke="#8B5A2B" strokeWidth={thickness / 2.5} strokeLinecap="round" opacity={0.7} />
-            {isRoot && (
-              <path d={path} fill="none" stroke="#A07040" strokeWidth={1.5} strokeLinecap="round" opacity={0.5} />
-            )}
           </g>
         );
       });
