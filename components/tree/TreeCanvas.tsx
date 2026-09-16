@@ -148,16 +148,6 @@ export function TreeCanvas({
       <path d={`M ${treeBounds.minX - 500} ${groundLineY + 30} Q ${treeBounds.minX - 200} ${groundLineY + 15}, ${rootX - 300} ${groundLineY + 20} Q ${rootX} ${groundLineY + 5}, ${rootX + 300} ${groundLineY + 20} Q ${treeBounds.maxX + 200} ${groundLineY + 15}, ${treeBounds.maxX + 500} ${groundLineY + 30} L ${treeBounds.maxX + 500} ${groundLineY + 400} L ${treeBounds.minX - 500} ${groundLineY + 400} Z`} fill="#2D5A24" />
       <path d={`M ${treeBounds.minX - 500} ${groundLineY + 15} Q ${treeBounds.minX - 200} ${groundLineY}, ${rootX - 300} ${groundLineY + 10} Q ${rootX} ${groundLineY - 5}, ${rootX + 300} ${groundLineY + 10} Q ${treeBounds.maxX + 200} ${groundLineY}, ${treeBounds.maxX + 500} ${groundLineY + 15} L ${treeBounds.maxX + 500} ${groundLineY + 400} L ${treeBounds.minX - 500} ${groundLineY + 400} Z`} fill="#4A8B3F" />
       <path d={`M ${treeBounds.minX - 500} ${groundLineY} Q ${treeBounds.minX - 200} ${groundLineY - 15}, ${rootX - 300} ${groundLineY - 5} Q ${rootX} ${groundLineY - 20}, ${rootX + 300} ${groundLineY - 5} Q ${treeBounds.maxX + 200} ${groundLineY - 15}, ${treeBounds.maxX + 500} ${groundLineY} L ${treeBounds.maxX + 500} ${groundLineY + 400} L ${treeBounds.minX - 500} ${groundLineY + 400} Z`} fill="#7BC96F" />
-      {[...Array(120)].map((_, i) => {
-        const x = treeBounds.minX - 500 + i * 50;
-        const height = 8 + (i % 5) * 3;
-        return (
-          <g key={i}>
-            <path d={`M ${x} ${groundLineY - 5} Q ${x + 3} ${groundLineY - 5 - height}, ${x + 6} ${groundLineY - 10}`} stroke="#3D7A2F" strokeWidth="1.5" fill="none" opacity="0.5" />
-            <path d={`M ${x + 10} ${groundLineY - 5} Q ${x + 12} ${groundLineY - 5 - height + 2}, ${x + 14} ${groundLineY - 10}`} stroke="#2D5A24" strokeWidth="1" fill="none" opacity="0.4" />
-          </g>
-        );
-      })}
     </g>
   );
 
@@ -184,7 +174,7 @@ export function TreeCanvas({
   );
 
   // =====================================================
-  // رسم الفروع — منحنية طبيعية بدون تقاطعات
+  // رسم الفروع — نظام "شمال/يمين" بدون تقاطعات
   // =====================================================
   const renderBranches = () => {
     return layoutNodes.flatMap((node) => {
@@ -193,44 +183,46 @@ export function TreeCanvas({
 
       const isRoot = !node.fatherId;
 
-      return children.map((child, index) => {
-        // حساب نسبة الفرع من إجمالي الأبناء
-        const ratio = children.length > 1 ? index / (children.length - 1) : 0.5;
+      // نقطة انطلاق الفروع (من الأب)
+      const startX = isRoot ? rootX : node.x;
+      const startY = isRoot ? trunkTopY + 20 : node.y + LEAF_HEIGHT / 2 + 5;
 
-        // نقطة البداية
-        // إذا كان الجذر: نوزع نقاط الانطلاق على طول الجذع
-        // إذا لم يكن: نبدأ من الأب مباشرة
-        let startX: number;
-        let startY: number;
+      // ترتيب الأبناء حسب الموقع الأفقي (من اليسار لليمين)
+      const sortedChildren = [...children].sort((a, b) => a.x - b.x);
 
-        if (isRoot) {
-          // توزيع نقاط الانطلاق على عرض الجذع
-          // من -40 إلى +40 بكسل من مركز الجذع
-          const trunkOffset = (ratio - 0.5) * 80;
-          startX = rootX + trunkOffset;
-          // نقطة الانطلاق على ارتفاع مختلف قليلاً لكل ابن
-          startY = trunkTopY + 20 + (index % 3) * 15;
-        } else {
-          startX = node.x;
-          startY = node.y + LEAF_HEIGHT / 2 + 5;
-        }
+      // تقسيم الأبناء إلى يمين ويسار
+      const midPoint = Math.ceil(sortedChildren.length / 2);
 
-        // نقطة النهاية
+      return sortedChildren.map((child, index) => {
         const endX = child.x;
         const endY = child.y - LEAF_HEIGHT / 2 - 5;
 
-        // ===== منحنى بيزير طبيعي بدون تقاطعات =====
-        // الفكرة: كل فرع ينحني للخارج قليلاً ثم يعود
-        const dy = endY - startY;
-        const dx = endX - startX;
+        // تحديد ما إذا كان الابن في "اليسار" أو "اليمين"
+        const isLeft = index < midPoint;
 
-        // نقاط التحكم:
-        // ctrl1: تخرج من الأب بشكل عمودي (مع انحراف بسيط)
-        // ctrl2: تتجه نحو الابن بشكل عمودي
-        const ctrl1X = startX + dx * 0.15;
-        const ctrl1Y = startY + dy * 0.4;
-        const ctrl2X = endX - dx * 0.15;
-        const ctrl2Y = endY - dy * 0.4;
+        // عدد الأبناء في هذا الجانب
+        const sideChildren = isLeft ? sortedChildren.slice(0, midPoint) : sortedChildren.slice(midPoint);
+        const sideIndex = isLeft ? index : index - midPoint;
+        const sideCount = sideChildren.length;
+
+        // حساب نسبة الابن داخل جانبه (0 = الأقرب للأب، 1 = الأبعد)
+        const ratioInSide = sideCount > 1 ? sideIndex / (sideCount - 1) : 0;
+
+        // ===== نقاط التحكم الذكية (نظام شمال/يمين) =====
+        const dy = endY - startY;
+        
+        // نقطة تحكم 1: تخرج من الأب عمودياً
+        const ctrl1X = startX;
+        const ctrl1Y = startY + dy * 0.35;
+
+        // نقطة تحكم 2: تنحني للجانب
+        // كل ابن ينحني بشكل أكبر نحو الجانب
+        const sideDirection = isLeft ? -1 : 1;
+        // كل ابن يأخذ قدراً مختلفاً من الانحراف (الأقرب للأب أقل انحرافاً)
+        const sideCurve = 40 + ratioInSide * 60;
+        
+        const ctrl2X = startX + sideDirection * sideCurve + (endX - startX) * 0.5;
+        const ctrl2Y = startY + dy * 0.65;
 
         const path = `M ${startX} ${startY} 
                      C ${ctrl1X} ${ctrl1Y}, 
@@ -241,7 +233,7 @@ export function TreeCanvas({
 
         return (
           <g key={`${node.id}-${child.id}`}>
-            <path d={path} fill="none" stroke="#2A1506" strokeWidth={thickness + 3} strokeLinecap="round" opacity={0.25} transform="translate(3,3)" />
+            <path d={path} fill="none" stroke="#2A1506" strokeWidth={thickness + 3} strokeLinecap="round" opacity={0.2} transform="translate(3,3)" />
             <path d={path} fill="none" stroke="#5D3A1A" strokeWidth={thickness} strokeLinecap="round" />
             <path d={path} fill="none" stroke="#8B5A2B" strokeWidth={thickness / 2.5} strokeLinecap="round" opacity={0.7} />
             {isRoot && (
