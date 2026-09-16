@@ -24,57 +24,58 @@ export function calculateTreeLayout(
 
   const maxDepth = Math.max(...roots.map((r) => getMaxDepth(r)));
 
+  // دالة التخطيط: توزع الأبناء يمين ويسار
   function layoutSubtree(
     person: PersonNode,
     depth: number,
-    leftBoundary: number
+    centerX: number
   ): number {
     const children = nodes.filter((n) => n.fatherId === person.id);
 
     const node: LayoutNode = {
       ...person,
       depth,
-      x: 0,
+      x: centerX,
       y: (maxDepth - depth) * VERTICAL_SPACING,
       width: LEAF_WIDTH,
       height: LEAF_HEIGHT,
     };
 
     if (children.length === 0) {
-      node.x = leftBoundary + HORIZONTAL_SPACING / 2;
       layoutNodes.push(node);
-      return node.x;
+      return centerX;
     }
 
-    let currentLeft = leftBoundary;
-    const childLayouts: number[] = [];
+    // توزيع الأبناء: النصف يمين، النصف يسار
+    const totalWidth = (children.length - 1) * HORIZONTAL_SPACING;
+    const startX = centerX - totalWidth / 2;
 
-    children.forEach((child) => {
-      const childX = layoutSubtree(child, depth + 1, currentLeft);
-      childLayouts.push(childX);
-      currentLeft = childX + HORIZONTAL_SPACING / 2;
+    children.forEach((child, index) => {
+      const childX = startX + index * HORIZONTAL_SPACING;
+      layoutSubtree(child, depth + 1, childX);
     });
 
-    const firstChildX = childLayouts[0];
-    const lastChildX = childLayouts[childLayouts.length - 1];
-    node.x = (firstChildX + lastChildX) / 2;
-
     layoutNodes.push(node);
-    return node.x;
+    return centerX;
   }
 
   let globalLeft = 0;
   roots.forEach((root) => {
-    const rootX = layoutSubtree(root, 0, globalLeft);
-    globalLeft = rootX + HORIZONTAL_SPACING;
-  });
+    // نحسب عرض الشجرة الفرعية أولاً
+    const maxDepthForRoot = getMaxDepth(root);
+    const totalLeaves = nodes.filter(
+      (n) => !nodes.some((c) => c.fatherId === n.id)
+    ).length;
 
-  if (layoutNodes.length > 0) {
-    const minX = Math.min(...layoutNodes.map((n) => n.x));
-    layoutNodes.forEach((node) => {
-      node.x = node.x - minX + LEAF_WIDTH;
-    });
-  }
+    const subtreeWidth = Math.max(
+      (maxDepthForRoot + 1) * HORIZONTAL_SPACING,
+      totalLeaves * HORIZONTAL_SPACING
+    );
+
+    const rootX = globalLeft + subtreeWidth / 2;
+    layoutSubtree(root, 0, rootX);
+    globalLeft += subtreeWidth + HORIZONTAL_SPACING;
+  });
 
   return layoutNodes;
 }
