@@ -130,7 +130,6 @@ export function TreeCanvas({
     }
   };
 
-  // إحداثيات الجذع
   const rootNodes = layoutNodes.filter((n) => !n.fatherId);
   const rootX = rootNodes.length > 0 ? rootNodes.reduce((sum, n) => sum + n.x, 0) / rootNodes.length : (treeBounds.minX + treeBounds.maxX) / 2;
   const rootY = rootNodes.length > 0 ? rootNodes[0].y : treeBounds.maxY;
@@ -140,9 +139,6 @@ export function TreeCanvas({
   const groundLineY = trunkBottomY + 15;
   const trunkHeight = trunkBottomY - trunkTopY;
 
-  // =====================================================
-  // رسم العشب
-  // =====================================================
   const renderGrass = () => (
     <g>
       <path d={`M ${treeBounds.minX - 500} ${groundLineY + 30} Q ${treeBounds.minX - 200} ${groundLineY + 15}, ${rootX - 300} ${groundLineY + 20} Q ${rootX} ${groundLineY + 5}, ${rootX + 300} ${groundLineY + 20} Q ${treeBounds.maxX + 200} ${groundLineY + 15}, ${treeBounds.maxX + 500} ${groundLineY + 30} L ${treeBounds.maxX + 500} ${groundLineY + 400} L ${treeBounds.minX - 500} ${groundLineY + 400} Z`} fill="#2D5A24" />
@@ -151,20 +147,10 @@ export function TreeCanvas({
     </g>
   );
 
-  // =====================================================
-  // رسم الجذع
-  // =====================================================
   const renderTrunk = () => (
     <g>
       <ellipse cx={rootX} cy={groundLineY + 20} rx="200" ry="35" fill="#1A3814" opacity="0.35" />
-      <ellipse cx={rootX} cy={groundLineY + 15} rx="150" ry="20" fill="#1A3814" opacity="0.25" />
-
-      <path d={`M ${rootX - 160} ${trunkBottomY - 10} C ${rootX - 230} ${trunkBottomY + 30}, ${rootX - 180} ${trunkBottomY + 55}, ${rootX - 110} ${trunkBottomY + 15} L ${rootX - 70} ${trunkBottomY - 15} Z`} fill="#3D1F0A" stroke="#2A1506" strokeWidth="2" />
-      <path d={`M ${rootX + 160} ${trunkBottomY - 10} C ${rootX + 230} ${trunkBottomY + 30}, ${rootX + 180} ${trunkBottomY + 55}, ${rootX + 110} ${trunkBottomY + 15} L ${rootX + 70} ${trunkBottomY - 15} Z`} fill="#3D1F0A" stroke="#2A1506" strokeWidth="2" />
-
-      <path d={`M ${rootX - 145} ${trunkBottomY} C ${rootX - 125} ${trunkBottomY - 110}, ${rootX - 85} ${trunkTopY + 110}, ${rootX - 55} ${trunkTopY} L ${rootX + 55} ${trunkTopY} C ${rootX + 85} ${trunkTopY + 110}, ${rootX + 125} ${trunkBottomY - 110}, ${rootX + 145} ${trunkBottomY} Z`} fill="#2A1506" opacity="0.35" transform="translate(6, 6)" />
       <path d={`M ${rootX - 145} ${trunkBottomY} C ${rootX - 125} ${trunkBottomY - 110}, ${rootX - 85} ${trunkTopY + 110}, ${rootX - 55} ${trunkTopY} L ${rootX + 55} ${trunkTopY} C ${rootX + 85} ${trunkTopY + 110}, ${rootX + 125} ${trunkBottomY - 110}, ${rootX + 145} ${trunkBottomY} Z`} fill="url(#trunkGrad)" stroke="#2A1506" strokeWidth="2.5" />
-
       {[...Array(10)].map((_, i) => {
         const yOff = (trunkHeight / 11) * (i + 1);
         const xOff = 95 - i * 8;
@@ -174,7 +160,7 @@ export function TreeCanvas({
   );
 
   // =====================================================
-  // رسم الفروع — نظام "شمال/يمين" بدون تقاطعات
+  // رسم الفروع — بنظام "غصن مركزي + تفرعات جانبية"
   // =====================================================
   const renderBranches = () => {
     return layoutNodes.flatMap((node) => {
@@ -183,57 +169,38 @@ export function TreeCanvas({
 
       const isRoot = !node.fatherId;
 
-      // نقطة انطلاق الفروع (من الأب)
       const startX = isRoot ? rootX : node.x;
       const startY = isRoot ? trunkTopY + 20 : node.y + LEAF_HEIGHT / 2 + 5;
 
-      // ترتيب الأبناء حسب الموقع الأفقي (من اليسار لليمين)
+      // ترتيب الأبناء حسب الموقع الأفقي
       const sortedChildren = [...children].sort((a, b) => a.x - b.x);
-
-      // تقسيم الأبناء إلى يمين ويسار
-      const midPoint = Math.ceil(sortedChildren.length / 2);
 
       return sortedChildren.map((child, index) => {
         const endX = child.x;
         const endY = child.y - LEAF_HEIGHT / 2 - 5;
 
-        // تحديد ما إذا كان الابن في "اليسار" أو "اليمين"
-        const isLeft = index < midPoint;
-
-        // عدد الأبناء في هذا الجانب
-        const sideChildren = isLeft ? sortedChildren.slice(0, midPoint) : sortedChildren.slice(midPoint);
-        const sideIndex = isLeft ? index : index - midPoint;
-        const sideCount = sideChildren.length;
-
-        // حساب نسبة الابن داخل جانبه (0 = الأقرب للأب، 1 = الأبعد)
-        const ratioInSide = sideCount > 1 ? sideIndex / (sideCount - 1) : 0;
-
-        // ===== نقاط التحكم الذكية (نظام شمال/يمين) =====
+        // منحنى طبيعي: يخرج من الأب، ينحني نحو الابن
         const dy = endY - startY;
-        
-        // نقطة تحكم 1: تخرج من الأب عمودياً
-        const ctrl1X = startX;
-        const ctrl1Y = startY + dy * 0.35;
+        const dx = endX - startX;
 
-        // نقطة تحكم 2: تنحني للجانب
-        // كل ابن ينحني بشكل أكبر نحو الجانب
-        const sideDirection = isLeft ? -1 : 1;
-        // كل ابن يأخذ قدراً مختلفاً من الانحراف (الأقرب للأب أقل انحرافاً)
-        const sideCurve = 40 + ratioInSide * 60;
-        
-        const ctrl2X = startX + sideDirection * sideCurve + (endX - startX) * 0.5;
-        const ctrl2Y = startY + dy * 0.65;
+        // نقطة تحكم 1: تخرج من الأب
+        const ctrl1X = startX;
+        const ctrl1Y = startY + dy * 0.4;
+
+        // نقطة تحكم 2: تتجه نحو الابن (بشكل عمودي)
+        const ctrl2X = endX;
+        const ctrl2Y = endY - dy * 0.4;
 
         const path = `M ${startX} ${startY} 
                      C ${ctrl1X} ${ctrl1Y}, 
                        ${ctrl2X} ${ctrl2Y}, 
                        ${endX} ${endY}`;
 
-        const thickness = isRoot ? 10 : 4;
+        const thickness = isRoot ? 12 : 5;
 
         return (
           <g key={`${node.id}-${child.id}`}>
-            <path d={path} fill="none" stroke="#2A1506" strokeWidth={thickness + 3} strokeLinecap="round" opacity={0.2} transform="translate(3,3)" />
+            <path d={path} fill="none" stroke="#2A1506" strokeWidth={thickness + 3} strokeLinecap="round" opacity={0.25} transform="translate(3,3)" />
             <path d={path} fill="none" stroke="#5D3A1A" strokeWidth={thickness} strokeLinecap="round" />
             <path d={path} fill="none" stroke="#8B5A2B" strokeWidth={thickness / 2.5} strokeLinecap="round" opacity={0.7} />
             {isRoot && (
@@ -245,9 +212,6 @@ export function TreeCanvas({
     });
   };
 
-  // =====================================================
-  // رسم الأوراق
-  // =====================================================
   const renderLeaves = () => {
     return layoutNodes.map((node) => {
       const colors = getLeafColors(node.status);
@@ -267,7 +231,6 @@ export function TreeCanvas({
           >
             <path d={`M ${LEAF_WIDTH / 2} 0 C ${LEAF_WIDTH * 0.7} ${LEAF_HEIGHT * 0.1}, ${LEAF_WIDTH} ${LEAF_HEIGHT * 0.35}, ${LEAF_WIDTH * 0.95} ${LEAF_HEIGHT * 0.5} C ${LEAF_WIDTH} ${LEAF_HEIGHT * 0.65}, ${LEAF_WIDTH * 0.7} ${LEAF_HEIGHT * 0.9}, ${LEAF_WIDTH / 2} ${LEAF_HEIGHT} C ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.9}, 0 ${LEAF_HEIGHT * 0.65}, ${LEAF_WIDTH * 0.05} ${LEAF_HEIGHT * 0.5} C 0 ${LEAF_HEIGHT * 0.35}, ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.1}, ${LEAF_WIDTH / 2} 0 Z`} fill={colors.fill} stroke={isSelected ? "#FFD700" : colors.stroke} strokeWidth={isSelected ? 3 : 1.5} />
             <path d={`M ${LEAF_WIDTH / 2} 6 C ${LEAF_WIDTH * 0.65} ${LEAF_HEIGHT * 0.25}, ${LEAF_WIDTH * 0.75} ${LEAF_HEIGHT * 0.4}, ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * 0.45} C ${LEAF_WIDTH * 0.35} ${LEAF_HEIGHT * 0.4}, ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.25}, ${LEAF_WIDTH / 2} 6 Z`} fill={colors.fillLight} opacity="0.5" />
-            <path d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 6} C ${LEAF_WIDTH * 0.65} ${LEAF_HEIGHT * 0.75}, ${LEAF_WIDTH * 0.75} ${LEAF_HEIGHT * 0.6}, ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * 0.55} C ${LEAF_WIDTH * 0.35} ${LEAF_HEIGHT * 0.6}, ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.75}, ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 6} Z`} fill={colors.fillDark} opacity="0.4" />
             <path d={`M ${LEAF_WIDTH / 2} 4 L ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 4}`} stroke={colors.vein} strokeWidth="1" opacity="0.6" />
             <text x={LEAF_WIDTH / 2} y={LEAF_HEIGHT / 2 - 2} textAnchor="middle" fill="#FFFFFF" fontSize="10.5" fontWeight="bold" style={{ fontFamily: "Amiri, serif", textShadow: "0 1px 3px rgba(0,0,0,0.8)" }} className="select-none pointer-events-none">
               {truncateName(node.fullName, 14)}
