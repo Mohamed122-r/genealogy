@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { PersonNode, LayoutNode } from "@/types/tree";
-import { calculateTreeLayout } from "@/lib/tree/tree-layout";
+import { calculateTreeLayout, getTreeBounds } from "@/lib/tree/tree-layout";
 import { ZoomIn, ZoomOut, RotateCcw, Maximize2, Search } from "lucide-react";
 
 interface TreeCanvasProps {
@@ -56,24 +56,27 @@ export function TreeCanvas({
   const [searchTerm, setSearchTerm] = useState("");
   const [zoomLevel, setZoomLevel] = useState(1);
 
-  const layoutNodes = useMemo(() => calculateTreeLayout(nodes, { width: 1200, height: 1000 }), [nodes]);
+  // حساب Layout باستخدام الخوارزمية الجديدة
+  const layoutNodes = useMemo(
+    () => calculateTreeLayout(nodes, {
+      leafWidth: LEAF_WIDTH,
+      leafHeight: LEAF_HEIGHT,
+      horizontalGap: 40,
+      verticalGap: 150,
+    }),
+    [nodes]
+  );
 
-  const treeBounds = useMemo(() => {
-    if (layoutNodes.length === 0) return { minX: 0, minY: 0, maxX: 1200, maxY: 1000 };
-    const minX = Math.min(...layoutNodes.map((n) => n.x - LEAF_WIDTH / 2));
-    const maxX = Math.max(...layoutNodes.map((n) => n.x + LEAF_WIDTH / 2));
-    const minY = Math.min(...layoutNodes.map((n) => n.y - LEAF_HEIGHT / 2));
-    const maxY = Math.max(...layoutNodes.map((n) => n.y + LEAF_HEIGHT / 2));
-    return { minX, minY, maxX, maxY };
-  }, [layoutNodes]);
+  // حساب Bounds
+  const treeBounds = useMemo(() => getTreeBounds(layoutNodes), [layoutNodes]);
 
   useEffect(() => {
     const padding = 200;
     setViewBox({
       x: treeBounds.minX - padding,
       y: treeBounds.minY - padding * 2,
-      width: treeBounds.maxX - treeBounds.minX + padding * 2,
-      height: treeBounds.maxY - treeBounds.minY + padding * 4,
+      width: treeBounds.width + padding * 2,
+      height: treeBounds.height + padding * 4,
     });
   }, [treeBounds]);
 
@@ -98,8 +101,8 @@ export function TreeCanvas({
     setViewBox({
       x: treeBounds.minX - padding,
       y: treeBounds.minY - padding * 2,
-      width: treeBounds.maxX - treeBounds.minX + padding * 2,
-      height: treeBounds.maxY - treeBounds.minY + padding * 4,
+      width: treeBounds.width + padding * 2,
+      height: treeBounds.height + padding * 4,
     });
   };
 
@@ -130,6 +133,7 @@ export function TreeCanvas({
     }
   };
 
+  // إحداثيات الجذع
   const rootNodes = layoutNodes.filter((n) => !n.fatherId);
   const rootX = rootNodes.length > 0 ? rootNodes.reduce((sum, n) => sum + n.x, 0) / rootNodes.length : (treeBounds.minX + treeBounds.maxX) / 2;
   const rootY = rootNodes.length > 0 ? rootNodes[0].y : treeBounds.maxY;
@@ -139,6 +143,9 @@ export function TreeCanvas({
   const groundLineY = trunkBottomY + 15;
   const trunkHeight = trunkBottomY - trunkTopY;
 
+  // =====================================================
+  // العشب
+  // =====================================================
   const renderGrass = () => (
     <g>
       <path d={`M ${treeBounds.minX - 500} ${groundLineY + 30} Q ${treeBounds.minX - 200} ${groundLineY + 15}, ${rootX - 300} ${groundLineY + 20} Q ${rootX} ${groundLineY + 5}, ${rootX + 300} ${groundLineY + 20} Q ${treeBounds.maxX + 200} ${groundLineY + 15}, ${treeBounds.maxX + 500} ${groundLineY + 30} L ${treeBounds.maxX + 500} ${groundLineY + 400} L ${treeBounds.minX - 500} ${groundLineY + 400} Z`} fill="#2D5A24" />
@@ -147,6 +154,9 @@ export function TreeCanvas({
     </g>
   );
 
+  // =====================================================
+  // الجذع
+  // =====================================================
   const renderTrunk = () => (
     <g>
       <ellipse cx={rootX} cy={groundLineY + 20} rx="200" ry="35" fill="#1A3814" opacity="0.35" />
@@ -162,15 +172,18 @@ export function TreeCanvas({
   );
 
   // =====================================================
-  // رسم الفروع — قصيرة ومباشرة
+  // الفروع — Orthogonal Curved (بدون تقاطع)
   // =====================================================
   const renderBranches = () => {
+    const layoutMap = new Map(layoutNodes.map((n) => [n.id, n]));
+
     return layoutNodes.flatMap((node) => {
       const children = layoutNodes.filter((child) => child.fatherId === node.id);
       if (children.length === 0) return [];
 
       const isRoot = !node.fatherId;
 
+      // نقطة البداية
       const startX = isRoot ? rootX : node.x;
       const startY = isRoot ? trunkTopY + 20 : node.y + LEAF_HEIGHT / 2 + 5;
 
@@ -178,33 +191,51 @@ export function TreeCanvas({
         const endX = child.x;
         const endY = child.y - LEAF_HEIGHT / 2 - 5;
 
-        // منحنى طبيعي مع نقاط تحكم قريبة
-        const dy = endY - startY;
+        // ===== فرع Orthogonal Curved =====
+        // الفكرة: الفرع يصعد عمودياً، ثم ينحني نحو الابن بشكل انسيابي.
+        // هذا يمنع التقاطعات لأن كل فرع يبقى في "شريحة" خاصة به.
 
+        const dy = endY - startY;
+        const dx = endX - startX;
+
+        // ارتفاع الانحناء (قبل الوصول للأفق)
+        const curveHeight = dy * 0.4;
+
+        // نقاط التحكم
         const ctrl1X = startX;
-        const ctrl1Y = startY + dy * 0.5;
+        const ctrl1Y = startY + curveHeight;
 
         const ctrl2X = endX;
-        const ctrl2Y = endY - dy * 0.5;
+        const ctrl2Y = endY - curveHeight;
 
         const path = `M ${startX} ${startY} 
                      C ${ctrl1X} ${ctrl1Y}, 
                        ${ctrl2X} ${ctrl2Y}, 
                        ${endX} ${endY}`;
 
-        const thickness = isRoot ? 10 : 4;
+        const thickness = isRoot ? 12 : 5;
 
         return (
           <g key={`${node.id}-${child.id}`}>
-            <path d={path} fill="none" stroke="#2A1506" strokeWidth={thickness + 3} strokeLinecap="round" opacity={0.25} transform="translate(3,3)" />
+            {/* الظل */}
+            <path d={path} fill="none" stroke="#2A1506" strokeWidth={thickness + 3} strokeLinecap="round" opacity={0.2} transform="translate(3,3)" />
+            {/* الفرع */}
             <path d={path} fill="none" stroke="#5D3A1A" strokeWidth={thickness} strokeLinecap="round" />
+            {/* الإضاءة */}
             <path d={path} fill="none" stroke="#8B5A2B" strokeWidth={thickness / 2.5} strokeLinecap="round" opacity={0.7} />
+            {/* لمعة للفروع الرئيسية */}
+            {isRoot && (
+              <path d={path} fill="none" stroke="#A07040" strokeWidth={1.5} strokeLinecap="round" opacity={0.5} />
+            )}
           </g>
         );
       });
     });
   };
 
+  // =====================================================
+  // الأوراق
+  // =====================================================
   const renderLeaves = () => {
     return layoutNodes.map((node) => {
       const colors = getLeafColors(node.status);
