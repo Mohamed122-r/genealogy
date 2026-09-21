@@ -1,7 +1,6 @@
 "use client";
 
 import { LayoutNode } from "@/types/tree";
-import { LayoutNode as FullLayoutNode } from "@/types/tree";
 
 interface TooltipProps {
   node: LayoutNode | null;
@@ -60,16 +59,13 @@ export function Tooltip({ node, position, allNodes }: TooltipProps) {
       }}
     >
       <div className="bg-dark-bg text-white rounded-2xl shadow-2xl border-2 border-gold-500 overflow-hidden min-w-[250px] max-w-[320px]">
-        {/* الرأس */}
         <div className="bg-gradient-to-l from-gold-500 to-gold-600 px-4 py-3">
           <p className="font-heritage font-bold text-dark-bg text-lg leading-tight">
             {node.fullName}
           </p>
         </div>
 
-        {/* المحتوى */}
         <div className="p-4 space-y-2.5 text-sm">
-          {/* الحالة */}
           <div className="flex items-center justify-between gap-4">
             <span className="text-gray-400 text-xs">الحالة:</span>
             <span
@@ -84,13 +80,11 @@ export function Tooltip({ node, position, allNodes }: TooltipProps) {
             </span>
           </div>
 
-          {/* الجنس */}
           <div className="flex items-center justify-between gap-4">
             <span className="text-gray-400 text-xs">الجنس:</span>
             <span className="text-white text-xs font-bold">{getGenderLabel(node.gender)}</span>
           </div>
 
-          {/* الجيل */}
           <div className="flex items-center justify-between gap-4">
             <span className="text-gray-400 text-xs">الجيل:</span>
             <span className="text-gold-500 text-xs font-bold">
@@ -98,7 +92,6 @@ export function Tooltip({ node, position, allNodes }: TooltipProps) {
             </span>
           </div>
 
-          {/* الأب */}
           {father && (
             <div className="flex items-start justify-between gap-4">
               <span className="text-gray-400 text-xs">الأب:</span>
@@ -106,13 +99,11 @@ export function Tooltip({ node, position, allNodes }: TooltipProps) {
             </div>
           )}
 
-          {/* عدد الأبناء */}
           <div className="flex items-center justify-between gap-4">
             <span className="text-gray-400 text-xs">عدد الأبناء:</span>
             <span className="text-gold-500 text-xs font-bold">{childrenCount}</span>
           </div>
 
-          {/* تاريخ الميلاد */}
           {node.birthDate && (
             <div className="flex items-center justify-between gap-4">
               <span className="text-gray-400 text-xs">تاريخ الميلاد:</span>
@@ -120,7 +111,6 @@ export function Tooltip({ node, position, allNodes }: TooltipProps) {
             </div>
           )}
 
-          {/* تاريخ الوفاة */}
           {node.deathDate && (
             <div className="flex items-center justify-between gap-4">
               <span className="text-gray-400 text-xs">تاريخ الوفاة:</span>
@@ -128,7 +118,6 @@ export function Tooltip({ node, position, allNodes }: TooltipProps) {
             </div>
           )}
 
-          {/* تلميح */}
           <div className="pt-2 border-t border-gold-500/30">
             <p className="text-[10px] text-gold-500 text-center">
               اضغط للتركيز على الشخص
@@ -137,10 +126,7 @@ export function Tooltip({ node, position, allNodes }: TooltipProps) {
         </div>
       </div>
 
-      {/* السهم */}
-      <div
-        className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-4 h-4 bg-dark-bg border-b-2 border-r-2 border-gold-500 transform rotate-45"
-      />
+      <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-4 h-4 bg-dark-bg border-b-2 border-r-2 border-gold-500 transform rotate-45" />
     </div>
   );
 }
