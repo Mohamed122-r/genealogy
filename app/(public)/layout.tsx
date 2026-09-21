@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { TreePine, Shield } from "lucide-react";
+import { TreePine } from "lucide-react";
 
 export default function PublicLayout({
   children,
@@ -46,14 +46,8 @@ export default function PublicLayout({
             </Link>
           </nav>
 
-          {/* زر لوحة التحكم */}
-          <Link
-            href="/login"
-            className="bg-gold-500 text-dark-bg px-3 md:px-4 py-2 rounded-lg font-bold text-xs md:text-sm flex items-center gap-2 hover:bg-gold-600 transition-all duration-300 shadow-lg"
-          >
-            <Shield className="w-4 h-4" />
-            <span className="hidden sm:inline">لوحة التحكم</span>
-          </Link>
+          {/* ⚠️ لا يوجد زر "لوحة التحكم" هنا */}
+          {/* يمكن للمحرر الدخول مباشرة عبر /admin */}
         </div>
       </header>
 
