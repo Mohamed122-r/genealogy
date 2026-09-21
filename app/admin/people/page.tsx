@@ -10,22 +10,17 @@ export default async function AdminPeoplePage() {
     redirect("/admin/dashboard");
   }
 
-  // جلب الأشخاص النشطين فقط (بدون المحذوفين)
   const people = await db.person.findMany({
     where: { deletedAt: null },
     include: {
       father: { select: { fullName: true } },
-      branch: { select: { name: true } },
       children: { select: { id: true } },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  const branches = await db.branch.findMany();
-
-  // ⚠️ الإصلاح: جلب الأشخاص النشطين فقط لقائمة الأب
   const allPeople = await db.person.findMany({
-    where: { deletedAt: null }, // ← هذا هو الإصلاح
+    where: { deletedAt: null },
     select: {
       id: true,
       fullName: true,
@@ -39,7 +34,7 @@ export default async function AdminPeoplePage() {
     <div className="space-y-6">
       <PeopleManager
         initialPeople={JSON.parse(JSON.stringify(people))}
-        branches={JSON.parse(JSON.stringify(branches))}
+        branches={[]}
         allPeople={JSON.parse(JSON.stringify(allPeople))}
       />
     </div>
