@@ -4,6 +4,8 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { PersonNode, LayoutNode } from "@/types/tree";
 import { calculateTreeLayout, getTreeBounds } from "@/lib/tree/tree-layout";
 import { ZoomIn, ZoomOut, RotateCcw, Maximize2, Search } from "lucide-react";
+import { TreeLeaf } from "./TreeLeaf";
+import { Tooltip } from "./Tooltip";
 
 interface TreeCanvasProps {
   nodes: PersonNode[];
@@ -15,33 +17,6 @@ interface TreeCanvasProps {
 
 const LEAF_WIDTH = 90;
 const LEAF_HEIGHT = 55;
-
-function getLeafColors(status: string) {
-  switch (status) {
-    case "ALIVE":
-      return { fill: "#4A8B3F", fillLight: "#7BC96F", fillDark: "#2D5A24", stroke: "#1F4218", vein: "#1A3814" };
-    case "DECEASED":
-      return { fill: "#E5B80B", fillLight: "#F5D547", fillDark: "#A8841D", stroke: "#8B6B0F", vein: "#6B4F0A" };
-    case "DISCONNECTED":
-      return { fill: "#8B7355", fillLight: "#A89078", fillDark: "#5D4A2E", stroke: "#4A3A22", vein: "#3A2E1A" };
-    default:
-      return { fill: "#A8A8A8", fillLight: "#C0C0C0", fillDark: "#808080", stroke: "#707070", vein: "#505050" };
-  }
-}
-
-function getStatusLabel(status: string) {
-  switch (status) {
-    case "ALIVE": return "حي";
-    case "DECEASED": return "متوفى";
-    case "DISCONNECTED": return "منقطع";
-    default: return "؟";
-  }
-}
-
-function truncateName(name: string, max: number = 14) {
-  if (name.length <= max) return name;
-  return name.substring(0, max - 2) + "..";
-}
 
 export function TreeCanvas({
   nodes,
@@ -55,19 +30,21 @@ export function TreeCanvas({
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
   const [searchTerm, setSearchTerm] = useState("");
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [hoveredNode, setHoveredNode] = useState<LayoutNode | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
-  // حساب Layout باستخدام الخوارزمية الجديدة
+  // ===== Layout =====
   const layoutNodes = useMemo(
-    () => calculateTreeLayout(nodes, {
-      leafWidth: LEAF_WIDTH,
-      leafHeight: LEAF_HEIGHT,
-      horizontalGap: 40,
-      verticalGap: 150,
-    }),
+    () =>
+      calculateTreeLayout(nodes, {
+        leafWidth: LEAF_WIDTH,
+        leafHeight: LEAF_HEIGHT,
+        horizontalGap: 40,
+        verticalGap: 150,
+      }),
     [nodes]
   );
 
-  // حساب Bounds
   const treeBounds = useMemo(() => getTreeBounds(layoutNodes), [layoutNodes]);
 
   useEffect(() => {
@@ -80,6 +57,42 @@ export function TreeCanvas({
     });
   }, [treeBounds]);
 
+  // ===== حساب العقد المُضاءة (الشخص + آبائه + أبنائه) =====
+  const highlightedNodeIds = useMemo(() => {
+    if (!searchTerm.trim()) return new Set<string>();
+
+    const searchLower = searchTerm.trim().toLowerCase();
+    const found = layoutNodes.find((node) =>
+      node.fullName.toLowerCase().includes(searchLower)
+    );
+
+    if (!found) return new Set<string>();
+
+    const highlighted = new Set<string>();
+    highlighted.add(found.id);
+
+    // إضافة كل الآباء (صعوداً)
+    let currentFatherId = found.fatherId;
+    while (currentFatherId) {
+      highlighted.add(currentFatherId);
+      const father = layoutNodes.find((n) => n.id === currentFatherId);
+      currentFatherId = father?.fatherId || null;
+    }
+
+    // إضافة كل الأبناء (نزولاً)
+    function addDescendants(nodeId: string) {
+      const children = layoutNodes.filter((n) => n.fatherId === nodeId);
+      children.forEach((child) => {
+        highlighted.add(child.id);
+        addDescendants(child.id);
+      });
+    }
+    addDescendants(found.id);
+
+    return highlighted;
+  }, [searchTerm, layoutNodes]);
+
+  // ===== دوال التحكم =====
   const handleZoom = (direction: "in" | "out") => {
     setZoomLevel((prev) => Math.min(5, Math.max(0.5, direction === "in" ? prev * 1.2 : prev / 1.2)));
   };
@@ -87,9 +100,15 @@ export function TreeCanvas({
   const handleSearch = (term: string) => {
     setSearchTerm(term);
     if (term.trim()) {
-      const found = layoutNodes.find((node) => node.fullName.includes(term.trim()));
+      const found = layoutNodes.find((node) =>
+        node.fullName.toLowerCase().includes(term.trim().toLowerCase())
+      );
       if (found) {
-        setViewBox((prev) => ({ ...prev, x: found.x - prev.width / 2, y: found.y - prev.height / 2 }));
+        setViewBox((prev) => ({
+          ...prev,
+          x: found.x - prev.width / 2,
+          y: found.y - prev.height / 2,
+        }));
         onSelectPerson(found.id);
       }
     }
@@ -106,46 +125,65 @@ export function TreeCanvas({
     });
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => { setIsPanning(true); setStartPan({ x: e.clientX, y: e.clientY }); };
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsPanning(true);
+    setStartPan({ x: e.clientX, y: e.clientY });
+  };
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isPanning) return;
     const dx = e.clientX - startPan.x;
     const dy = e.clientY - startPan.y;
-    setViewBox((prev) => ({ ...prev, x: prev.x - dx * (prev.width / (svgRef.current?.clientWidth || 1)), y: prev.y - dy * (prev.height / (svgRef.current?.clientHeight || 1)) }));
+    setViewBox((prev) => ({
+      ...prev,
+      x: prev.x - dx * (prev.width / (svgRef.current?.clientWidth || 1)),
+      y: prev.y - dy * (prev.height / (svgRef.current?.clientHeight || 1)),
+    }));
     setStartPan({ x: e.clientX, y: e.clientY });
   };
   const handleMouseUp = () => setIsPanning(false);
 
   const touchStartRef = useRef({ x: 0, y: 0, dist: 0 });
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 1) { setIsPanning(true); setStartPan({ x: e.touches[0].clientX, y: e.touches[0].clientY }); }
-    else if (e.touches.length === 2) {
-      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    if (e.touches.length === 1) {
+      setIsPanning(true);
+      setStartPan({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
       touchStartRef.current = { x: 0, y: 0, dist };
     }
   };
   const handleTouchMove = (e: React.TouchEvent) => {
     if (e.touches.length === 1 && isPanning) handleMouseMove(e.touches[0] as any);
     else if (e.touches.length === 2) {
-      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
       if (touchStartRef.current.dist > 0) handleZoom(dist > touchStartRef.current.dist ? "in" : "out");
       touchStartRef.current.dist = dist;
     }
   };
 
-  // إحداثيات الجذع
+  // ===== إحداثيات الجذع =====
   const rootNodes = layoutNodes.filter((n) => !n.fatherId);
   const rootX = rootNodes.length > 0 ? rootNodes.reduce((sum, n) => sum + n.x, 0) / rootNodes.length : (treeBounds.minX + treeBounds.maxX) / 2;
   const rootY = rootNodes.length > 0 ? rootNodes[0].y : treeBounds.maxY;
-  
   const trunkTopY = rootY + LEAF_HEIGHT / 2 - 10;
   const trunkBottomY = rootY + LEAF_HEIGHT / 2 + 120;
   const groundLineY = trunkBottomY + 15;
   const trunkHeight = trunkBottomY - trunkTopY;
 
-  // =====================================================
-  // العشب
-  // =====================================================
+  // ===== الأدوات المساعدة =====
+  const handleLeafHover = (e: React.MouseEvent, node: LayoutNode) => {
+    setHoveredNode(node);
+    setTooltipPos({ x: e.clientX, y: e.clientY - 20 });
+  };
+  const handleLeafLeave = () => setHoveredNode(null);
+
+  // ===== رسم العشب =====
   const renderGrass = () => (
     <g>
       <path d={`M ${treeBounds.minX - 500} ${groundLineY + 30} Q ${treeBounds.minX - 200} ${groundLineY + 15}, ${rootX - 300} ${groundLineY + 20} Q ${rootX} ${groundLineY + 5}, ${rootX + 300} ${groundLineY + 20} Q ${treeBounds.maxX + 200} ${groundLineY + 15}, ${treeBounds.maxX + 500} ${groundLineY + 30} L ${treeBounds.maxX + 500} ${groundLineY + 400} L ${treeBounds.minX - 500} ${groundLineY + 400} Z`} fill="#2D5A24" />
@@ -154,9 +192,7 @@ export function TreeCanvas({
     </g>
   );
 
-  // =====================================================
-  // الجذع
-  // =====================================================
+  // ===== رسم الجذع =====
   const renderTrunk = () => (
     <g>
       <ellipse cx={rootX} cy={groundLineY + 20} rx="200" ry="35" fill="#1A3814" opacity="0.35" />
@@ -166,24 +202,28 @@ export function TreeCanvas({
       {[...Array(8)].map((_, i) => {
         const yOff = (trunkHeight / 9) * (i + 1);
         const xOff = 90 - i * 8;
-        return <path key={i} d={`M ${rootX - xOff} ${trunkBottomY - yOff} Q ${rootX - xOff / 2} ${trunkBottomY - yOff - 15} ${rootX} ${trunkBottomY - yOff - 8}`} stroke="#2A1506" strokeWidth="1.5" fill="none" opacity="0.4" />;
+        return (
+          <path
+            key={i}
+            d={`M ${rootX - xOff} ${trunkBottomY - yOff} Q ${rootX - xOff / 2} ${trunkBottomY - yOff - 15} ${rootX} ${trunkBottomY - yOff - 8}`}
+            stroke="#2A1506"
+            strokeWidth="1.5"
+            fill="none"
+            opacity="0.4"
+          />
+        );
       })}
     </g>
   );
 
-  // =====================================================
-  // الفروع — Orthogonal Curved (بدون تقاطع)
-  // =====================================================
+  // ===== رسم الفروع =====
   const renderBranches = () => {
-    const layoutMap = new Map(layoutNodes.map((n) => [n.id, n]));
-
     return layoutNodes.flatMap((node) => {
       const children = layoutNodes.filter((child) => child.fatherId === node.id);
       if (children.length === 0) return [];
 
       const isRoot = !node.fatherId;
 
-      // نقطة البداية
       const startX = isRoot ? rootX : node.x;
       const startY = isRoot ? trunkTopY + 20 : node.y + LEAF_HEIGHT / 2 + 5;
 
@@ -191,81 +231,61 @@ export function TreeCanvas({
         const endX = child.x;
         const endY = child.y - LEAF_HEIGHT / 2 - 5;
 
-        // ===== فرع Orthogonal Curved =====
-        // الفكرة: الفرع يصعد عمودياً، ثم ينحني نحو الابن بشكل انسيابي.
-        // هذا يمنع التقاطعات لأن كل فرع يبقى في "شريحة" خاصة به.
-
         const dy = endY - startY;
-        const dx = endX - startX;
-
-        // ارتفاع الانحناء (قبل الوصول للأفق)
         const curveHeight = dy * 0.4;
 
-        // نقاط التحكم
         const ctrl1X = startX;
         const ctrl1Y = startY + curveHeight;
-
         const ctrl2X = endX;
         const ctrl2Y = endY - curveHeight;
 
-        const path = `M ${startX} ${startY} 
-                     C ${ctrl1X} ${ctrl1Y}, 
-                       ${ctrl2X} ${ctrl2Y}, 
-                       ${endX} ${endY}`;
+        const path = `M ${startX} ${startY} C ${ctrl1X} ${ctrl1Y}, ${ctrl2X} ${ctrl2Y}, ${endX} ${endY}`;
+
+        // هل الفرع مُضاء؟
+        const isBranchHighlighted =
+          highlightedNodeIds.has(node.id) && highlightedNodeIds.has(child.id);
+
+        const isBranchDimmed =
+          highlightedNodeIds.size > 0 && !isBranchHighlighted;
+
+        let branchColor = "#5D3A1A";
+        let branchLight = "#8B5A2B";
+        let opacity = 1;
+
+        if (isBranchHighlighted) {
+          branchColor = "#C9A227";
+          branchLight = "#FFD700";
+        } else if (isBranchDimmed) {
+          opacity = 0.25;
+        }
 
         const thickness = isRoot ? 12 : 5;
 
         return (
-          <g key={`${node.id}-${child.id}`}>
-            {/* الظل */}
+          <g key={`${node.id}-${child.id}`} opacity={opacity}>
             <path d={path} fill="none" stroke="#2A1506" strokeWidth={thickness + 3} strokeLinecap="round" opacity={0.2} transform="translate(3,3)" />
-            {/* الفرع */}
-            <path d={path} fill="none" stroke="#5D3A1A" strokeWidth={thickness} strokeLinecap="round" />
-            {/* الإضاءة */}
-            <path d={path} fill="none" stroke="#8B5A2B" strokeWidth={thickness / 2.5} strokeLinecap="round" opacity={0.7} />
-            {/* لمعة للفروع الرئيسية */}
-            {isRoot && (
-              <path d={path} fill="none" stroke="#A07040" strokeWidth={1.5} strokeLinecap="round" opacity={0.5} />
-            )}
+            <path d={path} fill="none" stroke={branchColor} strokeWidth={thickness} strokeLinecap="round" />
+            <path d={path} fill="none" stroke={branchLight} strokeWidth={thickness / 2.5} strokeLinecap="round" opacity={0.7} />
           </g>
         );
       });
     });
   };
 
-  // =====================================================
-  // الأوراق
-  // =====================================================
+  // ===== رسم الأوراق =====
   const renderLeaves = () => {
-    return layoutNodes.map((node) => {
-      const colors = getLeafColors(node.status);
-      const isSelected = selectedPersonId === node.id;
-
-      return (
-        <g key={node.id}>
-          <line x1={node.x} y1={node.y + LEAF_HEIGHT / 2 + 5} x2={node.x} y2={node.y + LEAF_HEIGHT / 2 + 15} stroke="#5D3A1A" strokeWidth="2.5" strokeLinecap="round" />
-          <g
-            transform={`translate(${node.x - LEAF_WIDTH / 2}, ${node.y - LEAF_HEIGHT / 2})`}
-            className="cursor-pointer"
-            onClick={(e) => { e.stopPropagation(); onSelectPerson(node.id); }}
-            style={{
-              filter: isSelected ? "drop-shadow(0 0 20px #FFD700) drop-shadow(0 0 8px #C9A227)" : "drop-shadow(0 4px 8px rgba(0,0,0,0.35))",
-              transition: "filter 0.3s ease",
-            }}
-          >
-            <path d={`M ${LEAF_WIDTH / 2} 0 C ${LEAF_WIDTH * 0.7} ${LEAF_HEIGHT * 0.1}, ${LEAF_WIDTH} ${LEAF_HEIGHT * 0.35}, ${LEAF_WIDTH * 0.95} ${LEAF_HEIGHT * 0.5} C ${LEAF_WIDTH} ${LEAF_HEIGHT * 0.65}, ${LEAF_WIDTH * 0.7} ${LEAF_HEIGHT * 0.9}, ${LEAF_WIDTH / 2} ${LEAF_HEIGHT} C ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.9}, 0 ${LEAF_HEIGHT * 0.65}, ${LEAF_WIDTH * 0.05} ${LEAF_HEIGHT * 0.5} C 0 ${LEAF_HEIGHT * 0.35}, ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.1}, ${LEAF_WIDTH / 2} 0 Z`} fill={colors.fill} stroke={isSelected ? "#FFD700" : colors.stroke} strokeWidth={isSelected ? 3 : 1.5} />
-            <path d={`M ${LEAF_WIDTH / 2} 6 C ${LEAF_WIDTH * 0.65} ${LEAF_HEIGHT * 0.25}, ${LEAF_WIDTH * 0.75} ${LEAF_HEIGHT * 0.4}, ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * 0.45} C ${LEAF_WIDTH * 0.35} ${LEAF_HEIGHT * 0.4}, ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.25}, ${LEAF_WIDTH / 2} 6 Z`} fill={colors.fillLight} opacity="0.5" />
-            <path d={`M ${LEAF_WIDTH / 2} 4 L ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 4}`} stroke={colors.vein} strokeWidth="1" opacity="0.6" />
-            <text x={LEAF_WIDTH / 2} y={LEAF_HEIGHT / 2 - 2} textAnchor="middle" fill="#FFFFFF" fontSize="10.5" fontWeight="bold" style={{ fontFamily: "Amiri, serif", textShadow: "0 1px 3px rgba(0,0,0,0.8)" }} className="select-none pointer-events-none">
-              {truncateName(node.fullName, 14)}
-            </text>
-            <text x={LEAF_WIDTH / 2} y={LEAF_HEIGHT / 2 + 11} textAnchor="middle" fill="#FFFFFF" fontSize="7.5" opacity="0.9" style={{ fontFamily: "Cairo, sans-serif", textShadow: "0 1px 2px rgba(0,0,0,0.7)" }} className="select-none pointer-events-none">
-              {getStatusLabel(node.status)}
-            </text>
-          </g>
-        </g>
-      );
-    });
+    return layoutNodes.map((node) => (
+      <TreeLeaf
+        key={node.id}
+        node={node}
+        isSelected={selectedPersonId === node.id}
+        isHighlighted={highlightedNodeIds.has(node.id) && selectedPersonId !== node.id}
+        isDimmed={highlightedNodeIds.size > 0 && !highlightedNodeIds.has(node.id) && selectedPersonId !== node.id}
+        onClick={() => onSelectPerson(node.id)}
+        onMouseEnter={handleLeafHover}
+        onMouseLeave={handleLeafLeave}
+      />
+    ));
   };
 
   return (
@@ -275,6 +295,7 @@ export function TreeCanvas({
         <div className="absolute inset-3 border border-gold-500/30 rounded-xl" />
       </div>
 
+      {/* أدوات التحكم */}
       <div className="absolute top-6 right-6 z-20 flex flex-col gap-2 bg-dark-bg/95 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-gold-500/30">
         <button onClick={() => handleZoom("in")} className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"><ZoomIn className="w-5 h-5" /></button>
         <button onClick={() => handleZoom("out")} className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"><ZoomOut className="w-5 h-5" /></button>
@@ -282,13 +303,33 @@ export function TreeCanvas({
         <button onClick={() => svgRef.current?.requestFullscreen()} className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"><Maximize2 className="w-5 h-5" /></button>
       </div>
 
+      {/* البحث */}
       <div className="absolute top-6 left-6 z-20 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-2 flex items-center gap-2 w-64 border border-gold-500/30">
         <Search className="w-4 h-4 text-gold-500" />
-        <input type="text" placeholder="ابحث عن شخص..." value={searchTerm} onChange={(e) => handleSearch(e.target.value)} className="bg-transparent outline-none w-full text-sm text-dark-bg placeholder:text-gray-400" />
+        <input
+          type="text"
+          placeholder="ابحث عن شخص..."
+          value={searchTerm}
+          onChange={(e) => handleSearch(e.target.value)}
+          className="bg-transparent outline-none w-full text-sm text-dark-bg placeholder:text-gray-400"
+        />
       </div>
 
-      <div className={`flex-1 h-full overflow-hidden ${isPanning ? "cursor-grabbing" : "cursor-grab"}`} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleMouseUp}>
-        <div style={{ transform: `scale(${zoomLevel})`, transformOrigin: "center", transition: "transform 0.3s ease-out" }} className="w-full h-full">
+      {/* منطقة الرسم */}
+      <div
+        className={`flex-1 h-full overflow-hidden ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleMouseUp}
+      >
+        <div
+          style={{ transform: `scale(${zoomLevel})`, transformOrigin: "center", transition: "transform 0.3s ease-out" }}
+          className="w-full h-full"
+        >
           <svg ref={svgRef} viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`} className="w-full h-full">
             <defs>
               <radialGradient id="bgGradient" cx="50%" cy="30%" r="90%">
@@ -318,10 +359,14 @@ export function TreeCanvas({
         </div>
       </div>
 
+      {/* عداد */}
       <div className="absolute bottom-6 right-6 z-20 bg-dark-bg/90 backdrop-blur-md text-white px-4 py-2 rounded-xl shadow-xl border border-gold-500/30">
         <span className="text-xs text-gold-500">الأشخاص:</span>
         <span className="font-bold mr-2 text-lg">{layoutNodes.length}</span>
       </div>
+
+      {/* البالونة المنبثقة */}
+      <Tooltip node={hoveredNode} position={tooltipPos} allNodes={layoutNodes} />
     </div>
   );
 }
