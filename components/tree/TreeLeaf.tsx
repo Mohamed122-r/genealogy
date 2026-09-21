@@ -32,7 +32,7 @@ function getStatusLabel(status: string) {
   }
 }
 
-function truncateName(name: string, max: number = 14) {
+function truncateName(name: string, max: number = 12) {
   if (name.length <= max) return name;
   return name.substring(0, max - 2) + "..";
 }
@@ -47,8 +47,10 @@ export function TreeLeaf({
   onMouseLeave,
 }: TreeLeafProps) {
   const colors = getLeafColors(node.status);
-  const LEAF_WIDTH = 90;
-  const LEAF_HEIGHT = 55;
+
+  // ✅ الشكل الجديد: أكثر استطالة (75 عرض × 70 ارتفاع)
+  const LEAF_WIDTH = 75;
+  const LEAF_HEIGHT = 70;
 
   let filter = "drop-shadow(0 4px 8px rgba(0,0,0,0.35))";
   let opacity = 1;
@@ -70,6 +72,7 @@ export function TreeLeaf({
 
   return (
     <g>
+      {/* ساق الورقة */}
       <line
         x1={node.x}
         y1={node.y + LEAF_HEIGHT / 2 + 5}
@@ -89,67 +92,96 @@ export function TreeLeaf({
         onMouseLeave={onMouseLeave}
         style={{ filter, opacity, transition: "all 0.3s ease" }}
       >
+        {/* ===== شكل الورقة الجديد (بيضاوي مدبب ومستطيل) ===== */}
         <path
-          d={`M ${LEAF_WIDTH / 2} 0 
-             C ${LEAF_WIDTH * 0.7} ${LEAF_HEIGHT * 0.1}, 
-               ${LEAF_WIDTH} ${LEAF_HEIGHT * 0.35}, 
-               ${LEAF_WIDTH * 0.95} ${LEAF_HEIGHT * 0.5} 
-             C ${LEAF_WIDTH} ${LEAF_HEIGHT * 0.65}, 
-               ${LEAF_WIDTH * 0.7} ${LEAF_HEIGHT * 0.9}, 
-               ${LEAF_WIDTH / 2} ${LEAF_HEIGHT} 
-             C ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.9}, 
-               0 ${LEAF_HEIGHT * 0.65}, 
-               ${LEAF_WIDTH * 0.05} ${LEAF_HEIGHT * 0.5} 
-             C 0 ${LEAF_HEIGHT * 0.35}, 
-               ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.1}, 
+          d={`M ${LEAF_WIDTH / 2} 0
+             C ${LEAF_WIDTH * 0.75} ${LEAF_HEIGHT * 0.15},
+               ${LEAF_WIDTH * 0.95} ${LEAF_HEIGHT * 0.35},
+               ${LEAF_WIDTH * 0.95} ${LEAF_HEIGHT * 0.5}
+             C ${LEAF_WIDTH * 0.95} ${LEAF_HEIGHT * 0.65},
+               ${LEAF_WIDTH * 0.75} ${LEAF_HEIGHT * 0.85},
+               ${LEAF_WIDTH / 2} ${LEAF_HEIGHT}
+             C ${LEAF_WIDTH * 0.25} ${LEAF_HEIGHT * 0.85},
+               ${LEAF_WIDTH * 0.05} ${LEAF_HEIGHT * 0.65},
+               ${LEAF_WIDTH * 0.05} ${LEAF_HEIGHT * 0.5}
+             C ${LEAF_WIDTH * 0.05} ${LEAF_HEIGHT * 0.35},
+               ${LEAF_WIDTH * 0.25} ${LEAF_HEIGHT * 0.15},
                ${LEAF_WIDTH / 2} 0 Z`}
           fill={colors.fill}
           stroke={strokeColor}
           strokeWidth={strokeWidth}
         />
+
+        {/* لمعة علوية (على شكل ورقة) */}
         <path
-          d={`M ${LEAF_WIDTH / 2} 6 
-             C ${LEAF_WIDTH * 0.65} ${LEAF_HEIGHT * 0.25}, 
-               ${LEAF_WIDTH * 0.75} ${LEAF_HEIGHT * 0.4}, 
-               ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * 0.45} 
-             C ${LEAF_WIDTH * 0.35} ${LEAF_HEIGHT * 0.4}, 
-               ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.25}, 
+          d={`M ${LEAF_WIDTH / 2} 6
+             C ${LEAF_WIDTH * 0.68} ${LEAF_HEIGHT * 0.22},
+               ${LEAF_WIDTH * 0.8} ${LEAF_HEIGHT * 0.4},
+               ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * 0.5}
+             C ${LEAF_WIDTH * 0.32} ${LEAF_HEIGHT * 0.4},
+               ${LEAF_WIDTH * 0.2} ${LEAF_HEIGHT * 0.22},
                ${LEAF_WIDTH / 2} 6 Z`}
           fill={colors.fillLight}
           opacity="0.5"
         />
+
+        {/* الظل السفلي */}
         <path
-          d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 6} 
-             C ${LEAF_WIDTH * 0.65} ${LEAF_HEIGHT * 0.75}, 
-               ${LEAF_WIDTH * 0.75} ${LEAF_HEIGHT * 0.6}, 
-               ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * 0.55} 
-             C ${LEAF_WIDTH * 0.35} ${LEAF_HEIGHT * 0.6}, 
-               ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.75}, 
+          d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 6}
+             C ${LEAF_WIDTH * 0.68} ${LEAF_HEIGHT * 0.78},
+               ${LEAF_WIDTH * 0.8} ${LEAF_HEIGHT * 0.6},
+               ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * 0.5}
+             C ${LEAF_WIDTH * 0.32} ${LEAF_HEIGHT * 0.6},
+               ${LEAF_WIDTH * 0.2} ${LEAF_HEIGHT * 0.78},
                ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 6} Z`}
           fill={colors.fillDark}
           opacity="0.4"
         />
+
+        {/* العرق المركزي */}
         <path
           d={`M ${LEAF_WIDTH / 2} 4 L ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 4}`}
           stroke={colors.vein}
-          strokeWidth="1"
-          opacity="0.6"
+          strokeWidth="1.2"
+          opacity="0.7"
         />
+
+        {/* عروق جانبية (5 عروق بدلاً من 3 لجمالية أكثر) */}
+        {[0.2, 0.35, 0.5, 0.65, 0.8].map((ratio, i) => (
+          <g key={i}>
+            <path
+              d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * ratio} L ${LEAF_WIDTH * 0.85} ${LEAF_HEIGHT * (ratio - 0.06)}`}
+              stroke={colors.vein}
+              strokeWidth="0.6"
+              opacity="0.5"
+            />
+            <path
+              d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT * ratio} L ${LEAF_WIDTH * 0.15} ${LEAF_HEIGHT * (ratio - 0.06)}`}
+              stroke={colors.vein}
+              strokeWidth="0.6"
+              opacity="0.5"
+            />
+          </g>
+        ))}
+
+        {/* الاسم */}
         <text
           x={LEAF_WIDTH / 2}
           y={LEAF_HEIGHT / 2 - 2}
           textAnchor="middle"
           fill="#FFFFFF"
-          fontSize="10.5"
+          fontSize="10"
           fontWeight="bold"
           style={{ fontFamily: "Amiri, serif", textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}
           className="select-none pointer-events-none"
         >
-          {truncateName(node.fullName, 14)}
+          {truncateName(node.fullName, 12)}
         </text>
+
+        {/* الحالة */}
         <text
           x={LEAF_WIDTH / 2}
-          y={LEAF_HEIGHT / 2 + 11}
+          y={LEAF_HEIGHT / 2 + 13}
           textAnchor="middle"
           fill="#FFFFFF"
           fontSize="7.5"
