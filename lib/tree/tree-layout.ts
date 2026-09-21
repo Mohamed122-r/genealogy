@@ -3,10 +3,10 @@ import { PersonNode, LayoutNode, TreeLayoutOptions } from "@/types/tree";
 // =====================================================
 // الإعدادات الافتراضية
 // =====================================================
-const DEFAULT_LEAF_WIDTH = 90;
-const DEFAULT_LEAF_HEIGHT = 55;
-const DEFAULT_HORIZONTAL_GAP = 40; // المسافة الأفقية بين الأوراق
-const DEFAULT_VERTICAL_GAP = 150;  // المسافة العمودية بين الأجيال
+const DEFAULT_LEAF_WIDTH = 75;
+const DEFAULT_LEAF_HEIGHT = 70;
+const DEFAULT_HORIZONTAL_GAP = 30; // المسافة الأفقية بين الأوراق
+const DEFAULT_VERTICAL_GAP = 170;  // المسافة العمودية بين الأجيال
 
 // =====================================================
 // Extended Layout Node (Internal Use)
