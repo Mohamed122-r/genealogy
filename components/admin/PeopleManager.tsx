@@ -21,12 +21,6 @@ interface Person {
   children: { id: string }[];
 }
 
-interface Branch {
-  id: string;
-  name: string;
-  color: string;
-}
-
 interface AllPerson {
   id: string;
   fullName: string;
@@ -37,12 +31,12 @@ interface AllPerson {
 
 interface PeopleManagerProps {
   initialPeople: Person[];
-  branches: Branch[];
+  branches: any[];
   allPeople: AllPerson[];
 }
 
-export function PeopleManager({ initialPeople, branches, allPeople }: PeopleManagerProps) {
-  const [people, setPeople] = useState(initialPeople);
+export function PeopleManager({ initialPeople, allPeople }: PeopleManagerProps) {
+  const [people] = useState(initialPeople);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -84,11 +78,9 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
   // بيانات النموذج
   const [formData, setFormData] = useState({
     firstName: "",
-    lastName: "",
     gender: "MALE",
     status: "ALIVE",
     fatherId: "",
-    branchId: "",
     birthDate: "",
     deathDate: "",
     notes: "",
@@ -122,11 +114,9 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
     setEditingPerson(null);
     setFormData({
       firstName: "",
-      lastName: "",
       gender: "MALE",
       status: "ALIVE",
       fatherId: "",
-      branchId: "",
       birthDate: "",
       deathDate: "",
       notes: "",
@@ -141,11 +131,9 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
     setEditingPerson(person);
     setFormData({
       firstName: person.firstName,
-      lastName: person.lastName,
       gender: person.gender,
       status: person.status,
       fatherId: person.fatherId || "",
-      branchId: person.branchId || "",
       birthDate: person.birthDate ? new Date(person.birthDate).toISOString().split("T")[0] : "",
       deathDate: person.deathDate ? new Date(person.deathDate).toISOString().split("T")[0] : "",
       notes: person.notes || "",
@@ -167,7 +155,17 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: "", // لا يوجد حقل اسم عائلة
+          gender: formData.gender,
+          status: formData.status,
+          fatherId: formData.fatherId || null,
+          birthDate: formData.birthDate || null,
+          deathDate: formData.deathDate || null,
+          notes: formData.notes || null,
+          branchId: null, // لا يوجد فرع
+        }),
       });
 
       const result = await response.json();
@@ -245,10 +243,9 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
         <table className="w-full text-right">
           <thead className="bg-dark-bg text-white">
             <tr>
-              <th className="p-4 text-sm font-bold">الاسم الكامل</th>
+              <th className="p-4 text-sm font-bold">الاسم</th>
               <th className="p-4 text-sm font-bold">الجيل</th>
               <th className="p-4 text-sm font-bold">الحالة</th>
-              <th className="p-4 text-sm font-bold">الفرع</th>
               <th className="p-4 text-sm font-bold">الأب</th>
               <th className="p-4 text-sm font-bold">الأبناء</th>
               <th className="p-4 text-sm font-bold">إجراءات</th>
@@ -257,17 +254,16 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
           <tbody>
             {filteredPeople.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-12 text-gray-500">لا يوجد أشخاص في هذا الجيل</td>
+                <td colSpan={6} className="text-center py-12 text-gray-500">لا يوجد أشخاص في هذا الجيل</td>
               </tr>
             ) : (
               filteredPeople.map((person) => {
                 const gen = peopleWithGeneration.find((p) => p.id === person.id)?.generation ?? 0;
                 return (
                   <tr key={person.id} className="border-b border-gray-100 hover:bg-heritage-bg">
-                    <td className="p-4 font-bold text-dark-bg">{person.fullName}</td>
+                    <td className="p-4 font-bold text-dark-bg">{person.firstName}</td>
                     <td className="p-4"><span className="bg-gold-500/20 text-gold-700 px-3 py-1 rounded-full text-xs font-bold">{getGenerationName(gen)}</span></td>
                     <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-bold ${person.status === "ALIVE" ? "bg-green-100 text-green-800" : person.status === "DECEASED" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-800"}`}>{person.status === "ALIVE" ? "حي" : person.status === "DECEASED" ? "متوفى" : "غير معروف"}</span></td>
-                    <td className="p-4">{person.branch?.name || "-"}</td>
                     <td className="p-4">{person.father?.fullName || "جذر"}</td>
                     <td className="p-4"><span className="bg-gold-500/20 text-gold-700 px-3 py-1 rounded-full text-xs font-bold">{person.children.length}</span></td>
                     <td className="p-4">
@@ -296,17 +292,21 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">{error}</div>}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold mb-2">الاسم الأول *</label>
-                  <input type="text" required value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500" placeholder="محمد" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-2">اسم العائلة *</label>
-                  <input type="text" required value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500" placeholder="القحطاني" />
-                </div>
+              {/* الاسم الأول فقط */}
+              <div>
+                <label className="block text-sm font-bold mb-2">الاسم *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
+                  placeholder="مثال: محمد"
+                />
+                <p className="text-xs text-gray-500 mt-1">الاسم الكامل سيُبنى تلقائياً من سلسلة الآباء</p>
               </div>
 
+              {/* الجنس والحالة */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-2">الجنس</label>
@@ -338,29 +338,22 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
                 <p className="text-xs text-gray-500 mt-1">اختر الجيل لتصفية قائمة الآباء</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold mb-2">
-                    الأب
-                    {formData.generation && <span className="text-xs text-gray-500 mr-2">(من الجيل السابق فقط)</span>}
-                  </label>
-                  <select value={formData.fatherId} onChange={(e) => setFormData({ ...formData, fatherId: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500">
-                    <option value="">بدون أب (جذر الشجرة)</option>
-                    {availableFathers.map((p) => (
-                      <option key={p.id} value={p.id}>{p.fullName} — {getGenerationName(p.generation)}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">{availableFathers.length} أب متاح</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-2">الفرع</label>
-                  <select value={formData.branchId} onChange={(e) => setFormData({ ...formData, branchId: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500">
-                    <option value="">بدون فرع</option>
-                    {branches.map((b) => (<option key={b.id} value={b.id}>{b.name}</option>))}
-                  </select>
-                </div>
+              {/* الأب */}
+              <div>
+                <label className="block text-sm font-bold mb-2">
+                  الأب
+                  {formData.generation && <span className="text-xs text-gray-500 mr-2">(من الجيل السابق فقط)</span>}
+                </label>
+                <select value={formData.fatherId} onChange={(e) => setFormData({ ...formData, fatherId: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500">
+                  <option value="">بدون أب (جذر الشجرة)</option>
+                  {availableFathers.map((p) => (
+                    <option key={p.id} value={p.id}>{p.fullName} — {getGenerationName(p.generation)}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">{availableFathers.length} أب متاح</p>
               </div>
 
+              {/* التواريخ */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-2">تاريخ الميلاد</label>
@@ -372,11 +365,13 @@ export function PeopleManager({ initialPeople, branches, allPeople }: PeopleMana
                 </div>
               </div>
 
+              {/* ملاحظات */}
               <div>
                 <label className="block text-sm font-bold mb-2">ملاحظات</label>
                 <textarea rows={3} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500" placeholder="ملاحظات إضافية..." />
               </div>
 
+              {/* الأزرار */}
               <div className="flex justify-end gap-2 pt-4 border-t border-gray-200">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2 border border-gray-300 rounded-lg font-bold hover:bg-gray-50">إلغاء</button>
                 <button type="submit" disabled={isLoading} className="px-6 py-2 bg-gold-500 text-dark-bg rounded-lg font-bold hover:bg-gold-600 disabled:opacity-50">{isLoading ? "جاري الحفظ..." : "حفظ"}</button>
