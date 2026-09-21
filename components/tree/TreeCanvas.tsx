@@ -15,8 +15,8 @@ interface TreeCanvasProps {
   onExport?: (format: "svg" | "pdf" | "png") => void;
 }
 
-const LEAF_WIDTH = 90;
-const LEAF_HEIGHT = 55;
+const LEAF_WIDTH = 75;
+const LEAF_HEIGHT = 70;
 
 export function TreeCanvas({
   nodes,
