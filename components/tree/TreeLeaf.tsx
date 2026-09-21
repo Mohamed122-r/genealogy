@@ -50,7 +50,6 @@ export function TreeLeaf({
   const LEAF_WIDTH = 90;
   const LEAF_HEIGHT = 55;
 
-  // تحديد الفلتر
   let filter = "drop-shadow(0 4px 8px rgba(0,0,0,0.35))";
   let opacity = 1;
   let strokeColor = colors.stroke;
@@ -70,8 +69,7 @@ export function TreeLeaf({
   }
 
   return (
-    <g key={node.id}>
-      {/* ساق الورقة */}
+    <g>
       <line
         x1={node.x}
         y1={node.y + LEAF_HEIGHT / 2 + 5}
@@ -89,13 +87,8 @@ export function TreeLeaf({
         onClick={(e) => { e.stopPropagation(); onClick(); }}
         onMouseEnter={(e) => onMouseEnter(e, node)}
         onMouseLeave={onMouseLeave}
-        style={{
-          filter,
-          opacity,
-          transition: "all 0.3s ease",
-        }}
+        style={{ filter, opacity, transition: "all 0.3s ease" }}
       >
-        {/* شكل الورقة */}
         <path
           d={`M ${LEAF_WIDTH / 2} 0 
              C ${LEAF_WIDTH * 0.7} ${LEAF_HEIGHT * 0.1}, 
@@ -114,7 +107,6 @@ export function TreeLeaf({
           stroke={strokeColor}
           strokeWidth={strokeWidth}
         />
-        {/* لمعة */}
         <path
           d={`M ${LEAF_WIDTH / 2} 6 
              C ${LEAF_WIDTH * 0.65} ${LEAF_HEIGHT * 0.25}, 
@@ -126,7 +118,6 @@ export function TreeLeaf({
           fill={colors.fillLight}
           opacity="0.5"
         />
-        {/* الجزء السفلي الغامق */}
         <path
           d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 6} 
              C ${LEAF_WIDTH * 0.65} ${LEAF_HEIGHT * 0.75}, 
@@ -138,14 +129,12 @@ export function TreeLeaf({
           fill={colors.fillDark}
           opacity="0.4"
         />
-        {/* العرق المركزي */}
         <path
           d={`M ${LEAF_WIDTH / 2} 4 L ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 4}`}
           stroke={colors.vein}
           strokeWidth="1"
           opacity="0.6"
         />
-        {/* الاسم */}
         <text
           x={LEAF_WIDTH / 2}
           y={LEAF_HEIGHT / 2 - 2}
@@ -158,7 +147,6 @@ export function TreeLeaf({
         >
           {truncateName(node.fullName, 14)}
         </text>
-        {/* الحالة */}
         <text
           x={LEAF_WIDTH / 2}
           y={LEAF_HEIGHT / 2 + 11}
