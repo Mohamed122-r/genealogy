@@ -11,34 +11,22 @@ export async function POST(request: NextRequest) {
 
     const data = await request.json();
 
-    if (!data.firstName || !data.lastName) {
+    if (!data.firstName) {
       return NextResponse.json({ error: "الاسم مطلوب" }, { status: 400 });
     }
 
-    // التحقق من العلاقة الدائرية
-    if (data.fatherId) {
-      let currentId = data.fatherId;
-      const visited = new Set();
-      while (currentId) {
-        if (visited.has(currentId)) break;
-        visited.add(currentId);
-        const father = await db.person.findUnique({
-          where: { id: currentId },
-          select: { fatherId: true },
-        });
-        currentId = father?.fatherId || null;
-      }
-    }
+    // اسم العائلة الاختياري (افتراضي: "")
+    const lastName = data.lastName || "";
 
     const newPerson = await db.person.create({
       data: {
         firstName: data.firstName,
-        lastName: data.lastName,
-        fullName: `${data.firstName} ${data.lastName}`,
+        lastName: lastName,
+        fullName: data.firstName, // سيُحدّث لاحقاً في الـ API
         gender: data.gender || "MALE",
         status: data.status || "ALIVE",
         fatherId: data.fatherId || null,
-        branchId: data.branchId || null,
+        branchId: null,
         birthDate: data.birthDate ? new Date(data.birthDate) : null,
         deathDate: data.deathDate ? new Date(data.deathDate) : null,
         notes: data.notes || null,
