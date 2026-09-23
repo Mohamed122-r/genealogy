@@ -19,12 +19,21 @@ export async function PUT(
       return NextResponse.json({ error: "لا يمكن أن يكون أباً لنفسه" }, { status: 400 });
     }
 
+    const firstName = (data.firstName || "").trim();
+    const lastName = (data.lastName || "").trim();
+
+    if (firstName.length < 2) {
+      return NextResponse.json({ error: "الاسم مطلوب (حرفان على الأقل)" }, { status: 400 });
+    }
+
+    const fullName = lastName ? `${firstName} ${lastName}` : firstName;
+
     const updated = await db.person.update({
       where: { id },
       data: {
-        firstName: data.firstName,
-        lastName: data.lastName || "",
-        fullName: data.firstName,
+        firstName,
+        lastName: lastName || " ",
+        fullName,
         gender: data.gender,
         status: data.status,
         fatherId: data.fatherId || null,
