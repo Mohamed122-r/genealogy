@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, X, Save, Eye, EyeOff, Loader2, FileText } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Save, Eye, EyeOff, Loader2, FileText, Info } from "lucide-react";
 import { RichTextEditor } from "./RichTextEditor";
 
 interface Page {
@@ -30,7 +30,7 @@ export function PagesManager() {
   const [formData, setFormData] = useState({
     title: "",
     slug: "",
-    content: "",
+    content: "<p></p>",
     order: 100,
     isPublished: true,
     showInNav: true,
@@ -133,12 +133,28 @@ export function PagesManager() {
     }
   }
 
+  // =====================================================
+  // توليد slug بالإنجليزية فقط
+  // =====================================================
   function generateSlug(title: string): string {
+    // إذا كان العنوان يحتوي على أحرف عربية، لا نولّد slug
+    const hasArabic = /[\u0600-\u06FF]/.test(title);
+    if (hasArabic) {
+      return "";
+    }
+
     return title
       .toLowerCase()
       .trim()
-      .replace(/[^\w\u0600-\u06FF-]+/g, "-")
+      .replace(/[^a-z0-9-]+/g, "-")
       .replace(/^-+|-+$/g, "");
+  }
+
+  // التحقق من أن الـ slug بالإنجليزية
+  function isSlugValid(slug: string): boolean {
+    if (!slug) return false;
+    // يجب أن يحتوي على أحرف إنجليزية أو أرقام أو شرطات فقط
+    return /^[a-z0-9-]+$/.test(slug);
   }
 
   return (
@@ -265,16 +281,42 @@ export function PagesManager() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold mb-2">الرابط (slug) *</label>
+                  <label className="block text-sm font-bold mb-2">
+                    الرابط (slug) *
+                    <span className="text-xs text-gray-500 mr-2">(بالإنجليزية فقط)</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={formData.slug}
                     onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500 font-mono text-sm"
+                    className={`w-full p-3 border rounded-lg focus:outline-none font-mono text-sm ${
+                      formData.slug && !isSlugValid(formData.slug)
+                        ? "border-red-500 focus:border-red-500"
+                        : "border-gray-300 focus:border-gold-500"
+                    }`}
                     placeholder="notables"
                     dir="ltr"
                   />
+                  {formData.slug && !isSlugValid(formData.slug) && (
+                    <p className="text-xs text-red-600 mt-1">
+                      ⚠️ الرابط يجب أن يكون بالإنجليزية (a-z, 0-9, -)
+                    </p>
+                  )}
+                  {formData.slug && isSlugValid(formData.slug) && (
+                    <p className="text-xs text-green-600 mt-1" dir="ltr">
+                      ✓ /{formData.slug}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* تنبيه للمستخدم */}
+              <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg flex items-start gap-2">
+                <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-800">
+                  <strong>ملاحظة:</strong> الرابط (slug) يجب أن يكون بالإنجليزية حتى يعمل مع جميع المتصفحات.
+                  مثال: للصفحة "أعيان القبيلة" → الرابط المناسب: <code className="bg-white px-1 rounded font-mono">notables</code>
                 </div>
               </div>
 
@@ -345,8 +387,8 @@ export function PagesManager() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSaving}
-                  className="px-6 py-2 bg-gold-500 text-dark-bg rounded-lg font-bold hover:bg-gold-600 disabled:opacity-50 flex items-center gap-2"
+                  disabled={isSaving || !isSlugValid(formData.slug)}
+                  className="px-6 py-2 bg-gold-500 text-dark-bg rounded-lg font-bold hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isSaving ? (
                     <>
