@@ -4,24 +4,29 @@ import { notFound } from "next/navigation";
 export const dynamic = "force-dynamic";
 
 interface PageProps {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps) {
+  const { slug } = await params;
+
   const page = await db.page.findUnique({
-    where: { slug: params.slug, isPublished: true },
+    where: { slug, isPublished: true },
   });
 
   if (!page) return { title: "الصفحة غير موجودة" };
 
   return {
     title: page.title,
+    description: `صفحة ${page.title} - شجرة النسب العائلية`,
   };
 }
 
 export default async function DynamicPage({ params }: PageProps) {
+  const { slug } = await params;
+
   const page = await db.page.findUnique({
-    where: { slug: params.slug, isPublished: true },
+    where: { slug, isPublished: true },
   });
 
   if (!page) {
@@ -38,7 +43,7 @@ export default async function DynamicPage({ params }: PageProps) {
           <div className="w-24 h-1 bg-gold-500 mx-auto rounded-full mb-8"></div>
 
           <div
-            className="prose prose-lg max-w-none text-gray-700 leading-loose"
+            className="prose prose-lg max-w-none text-gray-700 leading-loose tiptap-content"
             dangerouslySetInnerHTML={{ __html: page.content }}
           />
         </div>
