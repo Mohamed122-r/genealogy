@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Pencil, Trash2, X, Save, Eye, EyeOff, Loader2, FileText } from "lucide-react";
+import { RichTextEditor } from "./RichTextEditor";
 
 interface Page {
   id: string;
@@ -36,7 +37,6 @@ export function PagesManager() {
     iconName: "",
   });
 
-  // جلب الصفحات
   useEffect(() => {
     fetchPages();
   }, []);
@@ -58,7 +58,7 @@ export function PagesManager() {
     setFormData({
       title: "",
       slug: "",
-      content: "",
+      content: "<p></p>",
       order: (pages.length + 1) * 10,
       isPublished: true,
       showInNav: true,
@@ -133,7 +133,6 @@ export function PagesManager() {
     }
   }
 
-  // توليد slug تلقائي من العنوان
   function generateSlug(title: string): string {
     return title
       .toLowerCase()
@@ -168,7 +167,7 @@ export function PagesManager() {
         <div className="bg-white rounded-xl p-12 text-center border border-gold-500/20 shadow-lg">
           <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-dark-bg mb-2">لا توجد صفحات بعد</h2>
-          <p className="text-gray-500 mb-4">ابدأ بإضافة صفحة "المقدمة" أو "أعيان القبيلة"</p>
+          <p className="text-gray-500 mb-4">ابدأ بإضافة صفحة جديدة</p>
           <button
             onClick={openCreateModal}
             className="bg-gold-500 text-dark-bg px-6 py-2 rounded-lg font-bold hover:bg-gold-600"
@@ -227,11 +226,10 @@ export function PagesManager() {
         </div>
       )}
 
-      {/* نموذج التحرير */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8">
-            <div className="flex justify-between items-center p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-8">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 sticky top-0 bg-white z-10 rounded-t-2xl">
               <h2 className="text-2xl font-bold text-dark-bg">
                 {editingPage ? "تحرير صفحة" : "إضافة صفحة جديدة"}
               </h2>
@@ -247,7 +245,7 @@ export function PagesManager() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-2">عنوان الصفحة *</label>
                   <input
@@ -280,23 +278,17 @@ export function PagesManager() {
                 </div>
               </div>
 
+              {/* المحرر المرئي */}
               <div>
-                <label className="block text-sm font-bold mb-2">المحتوى (HTML) *</label>
-                <textarea
-                  required
-                  rows={12}
+                <label className="block text-sm font-bold mb-2">المحتوى *</label>
+                <RichTextEditor
                   value={formData.content}
-                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500 font-mono text-sm"
-                  placeholder="<h1>مرحباً</h1> <p>اكتب المحتوى هنا...</p>"
-                  dir="ltr"
+                  onChange={(html) => setFormData({ ...formData, content: html })}
+                  placeholder="اكتب محتوى الصفحة هنا..."
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  💡 يمكنك استخدام وسوم HTML: &lt;h2&gt;، &lt;p&gt;، &lt;ul&gt;، &lt;strong&gt;، إلخ.
-                </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-2">الترتيب</label>
                   <input
