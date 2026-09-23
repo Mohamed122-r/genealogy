@@ -1,11 +1,28 @@
 import Link from "next/link";
 import { TreePine } from "lucide-react";
+import { db } from "@/lib/db";
 
-export default function PublicLayout({
+export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // جلب الصفحات النشطة التي تظهر في القائمة
+  const pages = await db.page.findMany({
+    where: {
+      isPublished: true,
+      showInNav: true,
+    },
+    orderBy: {
+      order: "asc",
+    },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+    },
+  });
+
   return (
     <div className="min-h-screen flex flex-col bg-heritage-bg">
       {/* ===== الهيدر ===== */}
@@ -24,30 +41,35 @@ export default function PublicLayout({
             </div>
           </Link>
 
-          {/* القائمة الرئيسية */}
+          {/* القائمة الديناميكية */}
           <nav className="hidden md:flex items-center gap-6 text-sm">
-            <Link href="/" className="hover:text-gold-500 transition-colors duration-200">
+            {/* رابط الرئيسية */}
+            <Link
+              href="/"
+              className="hover:text-gold-500 transition-colors duration-200"
+            >
               الرئيسية
             </Link>
-            <Link href="/introduction" className="hover:text-gold-500 transition-colors duration-200">
-              المقدمة
-            </Link>
-            <Link href="/narrators" className="hover:text-gold-500 transition-colors duration-200">
-              الرواة
-            </Link>
-            <Link href="/tree" className="hover:text-gold-500 transition-colors duration-200">
+
+            {/* رابط المشجرة */}
+            <Link
+              href="/tree"
+              className="hover:text-gold-500 transition-colors duration-200"
+            >
               المشجرة
             </Link>
-            <Link href="/sources" className="hover:text-gold-500 transition-colors duration-200">
-              المصادر
-            </Link>
-            <Link href="/contact" className="hover:text-gold-500 transition-colors duration-200">
-              تواصل معنا
-            </Link>
-          </nav>
 
-          {/* ⚠️ لا يوجد زر "لوحة التحكم" هنا */}
-          {/* يمكن للمحرر الدخول مباشرة عبر /admin */}
+            {/* الصفحات الديناميكية */}
+            {pages.map((page) => (
+              <Link
+                key={page.id}
+                href={`/${page.slug}`}
+                className="hover:text-gold-500 transition-colors duration-200"
+              >
+                {page.title}
+              </Link>
+            ))}
+          </nav>
         </div>
       </header>
 
