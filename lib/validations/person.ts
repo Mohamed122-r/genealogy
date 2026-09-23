@@ -2,8 +2,8 @@ import { z } from "zod";
 import { PersonStatus, Gender } from "@prisma/client";
 
 export const personSchema = z.object({
-  firstName: z.string().min(2, "الاسم الأول قصير جداً").max(50),
-  lastName: z.string().min(2, "اسم العائلة قصير جداً").max(50),
+  firstName: z.string().min(2, "الاسم قصير جداً").max(50),
+  lastName: z.string().optional().default(""),
   gender: z.nativeEnum(Gender, { message: "اختر الجنس" }),
   status: z.nativeEnum(PersonStatus, { message: "اختر الحالة" }),
   fatherId: z.string().nullable().optional(),
