@@ -9,7 +9,8 @@ import {
   Settings, 
   LogOut,
   History,
-  TreePine
+  TreePine,
+  FileText
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/button";
 const menuItems = [
   { href: "/admin/dashboard", label: "الرئيسية", icon: LayoutDashboard },
   { href: "/admin/people", label: "الأشخاص", icon: Users },
+  { href: "/admin/pages", label: "الصفحات", icon: FileText },
   { href: "/admin/logs", label: "سجل العمليات", icon: History },
   { href: "/admin/settings", label: "الإعدادات", icon: Settings },
 ];
