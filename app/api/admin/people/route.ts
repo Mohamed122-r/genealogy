@@ -11,18 +11,22 @@ export async function POST(request: NextRequest) {
 
     const data = await request.json();
 
-    if (!data.firstName) {
-      return NextResponse.json({ error: "الاسم مطلوب" }, { status: 400 });
+    if (!data.firstName || data.firstName.trim().length < 2) {
+      return NextResponse.json({ error: "الاسم مطلوب (حرفان على الأقل)" }, { status: 400 });
     }
 
-    // اسم العائلة الاختياري (افتراضي: "")
-    const lastName = data.lastName || "";
+    const firstName = data.firstName.trim();
+    const lastName = (data.lastName || "").trim();
+
+    // بناء الاسم الكامل: إذا كان هناك اسم عائلة، نضيفه، وإلا نستخدم الاسم الأول فقط
+    // سيتم تحديث الاسم الكامل لاحقاً من سلسلة الآباء
+    const fullName = lastName ? `${firstName} ${lastName}` : firstName;
 
     const newPerson = await db.person.create({
       data: {
-        firstName: data.firstName,
-        lastName: lastName,
-        fullName: data.firstName, // سيُحدّث لاحقاً في الـ API
+        firstName,
+        lastName: lastName || " ",
+        fullName,
         gender: data.gender || "MALE",
         status: data.status || "ALIVE",
         fatherId: data.fatherId || null,
