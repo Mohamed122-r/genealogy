@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, X, Filter, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Filter, Sparkles, Crown } from "lucide-react";
 
 interface Person {
   id: string;
@@ -42,8 +42,8 @@ export function PeopleManager({ initialPeople, allPeople }: PeopleManagerProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [filterGeneration, setFilterGeneration] = useState<string>("all");
-  const [isCustomGeneration, setIsCustomGeneration] = useState(false);
-  const [customGenerationNumber, setCustomGenerationNumber] = useState("");
+  const [isNewRoot, setIsNewRoot] = useState(false);
+  const [sonId, setSonId] = useState("");
   const router = useRouter();
 
   // =====================================================
@@ -66,24 +66,19 @@ export function PeopleManager({ initialPeople, allPeople }: PeopleManagerProps) 
     return allPeople.map((p) => ({ ...p, generation: genMap.get(p.id) || 0 }));
   }, [allPeople]);
 
-  // =====================================================
-  // الأجيال المتاحة (مع إضافة الأجيال المستقبلية)
-  // =====================================================
-  const availableGenerations = useMemo(() => {
-    const gens = new Set(peopleWithGeneration.map((p) => p.generation));
-    const maxGen = Math.max(0, ...Array.from(gens));
-    // نضيف 5 أجيال مستقبلية إضافية حتى يتمكن المستخدم من إضافة أجيال جديدة
-    for (let i = 1; i <= 5; i++) {
-      gens.add(maxGen + i);
-    }
-    return Array.from(gens).sort((a, b) => a - b);
-  }, [peopleWithGeneration]);
-
-  // الفلتر يعرض فقط الأجيال التي تحتوي على أشخاص
+  // الأجيال الموجودة
   const existingGenerations = useMemo(() => {
     const gens = new Set(peopleWithGeneration.map((p) => p.generation));
     return Array.from(gens).sort((a, b) => a - b);
   }, [peopleWithGeneration]);
+
+  // الأجيال المتاحة للاختيار (مع 5 أجيال مستقبلية)
+  const availableGenerations = useMemo(() => {
+    const maxGen = Math.max(0, ...Array.from(existingGenerations));
+    const gens = new Set(existingGenerations);
+    for (let i = 1; i <= 5; i++) gens.add(maxGen + i);
+    return Array.from(gens).sort((a, b) => a - b);
+  }, [existingGenerations]);
 
   const filteredPeople = useMemo(() => {
     if (filterGeneration === "all") return people;
@@ -107,19 +102,16 @@ export function PeopleManager({ initialPeople, allPeople }: PeopleManagerProps) 
     generation: "",
   });
 
-  // الجيل الفعلي المستخدم
   const effectiveGeneration = useMemo(() => {
-    if (isCustomGeneration && customGenerationNumber) {
-      return Number(customGenerationNumber);
-    }
     return formData.generation ? Number(formData.generation) : null;
-  }, [isCustomGeneration, customGenerationNumber, formData.generation]);
+  }, [formData.generation]);
 
   // =====================================================
   // فلترة الآباء حسب الجيل
   // =====================================================
   const availableFathers = useMemo(() => {
     if (!isModalOpen) return [];
+    if (isNewRoot) return []; // الجذر الجديد لا يحتاج أب
 
     return peopleWithGeneration
       .filter((p) => {
@@ -127,24 +119,44 @@ export function PeopleManager({ initialPeople, allPeople }: PeopleManagerProps) 
         if (editingPerson && p.id === editingPerson.id) return false;
 
         if (editingPerson) {
-          // عند التعديل: استبعاد نفسه والأجيال اللاحقة
           const personGen = peopleWithGeneration.find((pg) => pg.id === editingPerson.id)?.generation || 0;
           if (p.generation >= personGen) return false;
         } else if (effectiveGeneration !== null) {
-          // عند الإضافة: عرض الآباء من الجيل السابق فقط
           if (p.generation !== effectiveGeneration - 1) return false;
         }
 
         return true;
       })
       .sort((a, b) => a.generation - b.generation);
-  }, [peopleWithGeneration, editingPerson, effectiveGeneration, isModalOpen]);
+  }, [peopleWithGeneration, editingPerson, effectiveGeneration, isModalOpen, isNewRoot]);
 
   // =====================================================
-  // الدوال المساعدة
+  // الأبناء المتاحون للربط (عند إضافة جذر جديد)
+  // نعرض فقط الجذور الحالية (الجيل الأول) التي يمكن ربط الجذر الجديد بها
+  // =====================================================
+  const availableSons = useMemo(() => {
+    if (!isModalOpen || !isNewRoot) return [];
+
+    // عرض الأشخاص من الجيل الأول (الجذور الحالية)
+    return peopleWithGeneration
+      .filter((p) => {
+        if (p.gender !== "MALE") return false;
+        // الجذور الحالية فقط (من الجيل الأول)
+        if (p.generation !== 0) return false;
+        // استبعاد نفسه (عند التعديل)
+        if (editingPerson && p.id === editingPerson.id) return false;
+        return true;
+      })
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, "ar"));
+  }, [peopleWithGeneration, editingPerson, isModalOpen, isNewRoot]);
+
+  // =====================================================
+  // دوال فتح النموذج
   // =====================================================
   function openCreateModal() {
     setEditingPerson(null);
+    setIsNewRoot(false);
+    setSonId("");
     setFormData({
       firstName: "",
       gender: "MALE",
@@ -155,8 +167,6 @@ export function PeopleManager({ initialPeople, allPeople }: PeopleManagerProps) 
       notes: "",
       generation: "",
     });
-    setIsCustomGeneration(false);
-    setCustomGenerationNumber("");
     setError("");
     setIsModalOpen(true);
   }
@@ -164,6 +174,8 @@ export function PeopleManager({ initialPeople, allPeople }: PeopleManagerProps) 
   function openEditModal(person: Person) {
     const personGen = peopleWithGeneration.find((p) => p.id === person.id)?.generation || 0;
     setEditingPerson(person);
+    setIsNewRoot(false);
+    setSonId("");
     setFormData({
       firstName: person.firstName,
       gender: person.gender,
@@ -174,12 +186,13 @@ export function PeopleManager({ initialPeople, allPeople }: PeopleManagerProps) 
       notes: person.notes || "",
       generation: String(personGen),
     });
-    setIsCustomGeneration(false);
-    setCustomGenerationNumber("");
     setError("");
     setIsModalOpen(true);
   }
 
+  // =====================================================
+  // حفظ البيانات
+  // =====================================================
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
@@ -189,19 +202,23 @@ export function PeopleManager({ initialPeople, allPeople }: PeopleManagerProps) 
       const url = editingPerson ? `/api/admin/people/${editingPerson.id}` : "/api/admin/people";
       const method = editingPerson ? "PUT" : "POST";
 
+      const payload = {
+        firstName: formData.firstName,
+        lastName: "",
+        gender: formData.gender,
+        status: formData.status,
+        fatherId: isNewRoot ? null : (formData.fatherId || null),
+        birthDate: formData.birthDate || null,
+        deathDate: formData.deathDate || null,
+        notes: formData.notes || null,
+        // ⚠️ إشارة خاصة للـ API: ربط الجذر بابن
+        linkedSonId: isNewRoot && sonId ? sonId : null,
+      };
+
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: "",
-          gender: formData.gender,
-          status: formData.status,
-          fatherId: formData.fatherId || null,
-          birthDate: formData.birthDate || null,
-          deathDate: formData.deathDate || null,
-          notes: formData.notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
@@ -432,102 +449,141 @@ export function PeopleManager({ initialPeople, allPeople }: PeopleManagerProps) 
                 </div>
               </div>
 
-              {/* الجيل */}
-              <div>
-                <label className="block text-sm font-bold mb-2">الجيل *</label>
-                <div className="space-y-2">
-                  <select
-                    value={isCustomGeneration ? "custom" : formData.generation}
-                    onChange={(e) => {
-                      if (e.target.value === "custom") {
-                        setIsCustomGeneration(true);
-                        setCustomGenerationNumber("");
-                        setFormData({ ...formData, generation: "", fatherId: "" });
-                      } else {
-                        setIsCustomGeneration(false);
-                        setCustomGenerationNumber("");
-                        setFormData({ ...formData, generation: e.target.value, fatherId: "" });
-                      }
-                    }}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                  >
-                    <option value="">اختر الجيل أولاً</option>
-                    {availableGenerations.map((gen) => {
-                      const hasPeople = existingGenerations.includes(gen);
-                      return (
-                        <option key={gen} value={gen}>
-                          {getGenerationName(gen)} {hasPeople ? "" : "(جديد)"}
-                        </option>
-                      );
-                    })}
-                    <option value="custom">✨ إضافة جيل جديد (يدوياً)</option>
-                  </select>
-
-                  {/* حقل إدخال الجيل اليدوي */}
-                  {isCustomGeneration && (
-                    <div className="flex items-center gap-2 bg-gold-500/10 border-2 border-gold-500/40 p-3 rounded-lg">
-                      <Sparkles className="w-5 h-5 text-gold-600 flex-shrink-0" />
-                      <input
-                        type="number"
-                        min="0"
-                        value={customGenerationNumber}
-                        onChange={(e) => {
-                          setCustomGenerationNumber(e.target.value);
-                          setFormData({ ...formData, fatherId: "" });
-                        }}
-                        placeholder="أدخل رقم الجيل (مثلاً: 8)"
-                        className="flex-1 p-2 border border-gold-500/30 rounded-lg focus:outline-none focus:border-gold-500 bg-white"
-                      />
-                      <span className="text-xs text-gray-600 whitespace-nowrap">
-                        {customGenerationNumber
-                          ? `= الجيل ${Number(customGenerationNumber) + 1}`
-                          : ""}
+              {/* ⚠️ خيار الجذر الجديد (عند الإضافة فقط) */}
+              {!editingPerson && (
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4 space-y-3">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isNewRoot}
+                      onChange={(e) => {
+                        setIsNewRoot(e.target.checked);
+                        setSonId("");
+                        setFormData({ ...formData, generation: "0", fatherId: "" });
+                      }}
+                      className="w-5 h-5 accent-amber-600"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Crown className="w-5 h-5 text-amber-600" />
+                      <span className="font-bold text-amber-900">
+                        إضافة كجذر جديد (للتصحيح)
                       </span>
                     </div>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  💡 اختر "إضافة جيل جديد" لإضافة جيل لم يكن موجوداً من قبل (مثل الجيل الثامن).
-                </p>
-              </div>
-
-              {/* الأب */}
-              <div>
-                <label className="block text-sm font-bold mb-2">
-                  الأب
-                  {effectiveGeneration !== null && (
-                    <span className="text-xs text-gray-500 mr-2">
-                      (من الجيل {effectiveGeneration})
-                    </span>
-                  )}
-                </label>
-                <select
-                  value={formData.fatherId}
-                  onChange={(e) => setFormData({ ...formData, fatherId: e.target.value })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  disabled={effectiveGeneration === 0 || effectiveGeneration === null}
-                >
-                  {effectiveGeneration === 0 ? (
-                    <option value="">— هذا الشخص جذر (لا أب) —</option>
-                  ) : effectiveGeneration === null ? (
-                    <option value="">— اختر الجيل أولاً —</option>
-                  ) : (
-                    <>
-                      <option value="">بدون أب (جذر الشجرة)</option>
-                      {availableFathers.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.fullName} — {getGenerationName(p.generation)}
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
-                {effectiveGeneration !== null && effectiveGeneration > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {availableFathers.length} أب متاح في الجيل {effectiveGeneration}
+                  </label>
+                  <p className="text-xs text-amber-700 pr-8">
+                    💡 استخدم هذا الخيار عند اكتشاف خطأ في التسلسل، أو عند سقوط جذر من الشجرة.
+                    <br />
+                    سيتم ربط الجذر الجديد بأحد الجذور الحالية (كأبٍ له).
                   </p>
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* ====== حالة الجذر الجديد ====== */}
+              {isNewRoot && !editingPerson ? (
+                <div className="space-y-4">
+                  <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-lg p-4">
+                    <h3 className="font-bold text-amber-900 mb-3 flex items-center gap-2">
+                      <Crown className="w-5 h-5" />
+                      ربط الجذر الجديد بابن موجود
+                    </h3>
+
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-amber-900">
+                        الابن (الجذر الحالي الذي سيصبح ابناً لهذا الجذر الجديد) *
+                      </label>
+                      <select
+                        value={sonId}
+                        onChange={(e) => setSonId(e.target.value)}
+                        required
+                        className="w-full p-3 border border-amber-300 rounded-lg focus:outline-none focus:border-amber-500 bg-white"
+                      >
+                        <option value="">— اختر الجذر الحالي —</option>
+                        {availableSons.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.fullName}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-amber-700 mt-2">
+                        {availableSons.length > 0
+                          ? `${availableSons.length} جذر متاح. الجذر الجديد سيصبح أباً للشخص المختار.`
+                          : "⚠️ لا يوجد جذور حالية. أضف جذراً عادياً أولاً."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* ====== الحالة العادية: مع أب ====== */
+                <>
+                  {/* الجيل */}
+                  <div>
+                    <label className="block text-sm font-bold mb-2">الجيل *</label>
+                    <div className="space-y-2">
+                      <select
+                        value={formData.generation}
+                        onChange={(e) => {
+                          setFormData({ ...formData, generation: e.target.value, fatherId: "" });
+                        }}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
+                      >
+                        <option value="">اختر الجيل أولاً</option>
+                        {availableGenerations.map((gen) => {
+                          const hasPeople = existingGenerations.includes(gen);
+                          return (
+                            <option key={gen} value={gen}>
+                              {getGenerationName(gen)} {hasPeople ? "" : "(جديد)"}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      💡 إذا لم تجد الجيل المطلوب، اضغط على "إضافة كجذر جديد" أعلاه.
+                    </p>
+                  </div>
+
+                  {/* الأب */}
+                  <div>
+                    <label className="block text-sm font-bold mb-2">
+                      الأب
+                      {effectiveGeneration !== null && (
+                        <span className="text-xs text-gray-500 mr-2">
+                          (من الجيل {effectiveGeneration})
+                        </span>
+                      )}
+                    </label>
+                    <select
+                      value={formData.fatherId}
+                      onChange={(e) => setFormData({ ...formData, fatherId: e.target.value })}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      disabled={effectiveGeneration === null}
+                    >
+                      {effectiveGeneration === null ? (
+                        <option value="">— اختر الجيل أولاً —</option>
+                      ) : (
+                        <>
+                          <option value="">— بدون أب (سيتم إنشاؤه كجذر منفصل) —</option>
+                          {availableFathers.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.fullName} — {getGenerationName(p.generation)}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                    {effectiveGeneration !== null && effectiveGeneration > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {availableFathers.length} أب متاح
+                      </p>
+                    )}
+                    {effectiveGeneration === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        ⚠️ إذا اخترت الجيل الأول، لن يتمكن من الارتباط بشجرة (سيصبح جذراً منفصلاً).
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
 
               {/* التواريخ */}
               <div className="grid grid-cols-2 gap-4">
@@ -574,8 +630,8 @@ export function PeopleManager({ initialPeople, allPeople }: PeopleManagerProps) 
                 </button>
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="px-6 py-2 bg-gold-500 text-dark-bg rounded-lg font-bold hover:bg-gold-600 disabled:opacity-50"
+                  disabled={isLoading || (isNewRoot && !sonId)}
+                  className="px-6 py-2 bg-gold-500 text-dark-bg rounded-lg font-bold hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? "جاري الحفظ..." : "حفظ"}
                 </button>
