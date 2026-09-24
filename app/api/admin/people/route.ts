@@ -16,16 +16,13 @@ export async function POST(request: NextRequest) {
     }
 
     const firstName = data.firstName.trim();
-    const lastName = (data.lastName || "").trim();
+    const fullName = firstName;
 
-    // بناء الاسم الكامل: إذا كان هناك اسم عائلة، نضيفه، وإلا نستخدم الاسم الأول فقط
-    // سيتم تحديث الاسم الكامل لاحقاً من سلسلة الآباء
-    const fullName = lastName ? `${firstName} ${lastName}` : firstName;
-
+    // ⚠️ إنشاء الشخص أولاً
     const newPerson = await db.person.create({
       data: {
         firstName,
-        lastName: lastName || " ",
+        lastName: " ",
         fullName,
         gender: data.gender || "MALE",
         status: data.status || "ALIVE",
@@ -36,6 +33,27 @@ export async function POST(request: NextRequest) {
         notes: data.notes || null,
       },
     });
+
+    // ⚠️ إذا كان هناك linkedSonId، نربط الابن بالشخص الجديد
+    if (data.linkedSonId) {
+      // التحقق من وجود الابن
+      const son = await db.person.findUnique({
+        where: { id: data.linkedSonId },
+        select: { id: true, fatherId: true },
+      });
+
+      if (!son) {
+        // إلغاء إنشاء الجذر بسبب خطأ في الابن
+        await db.person.delete({ where: { id: newPerson.id } });
+        return NextResponse.json({ error: "الابن المحدد غير موجود" }, { status: 400 });
+      }
+
+      // تحديث الابن ليشير إلى الجذر الجديد كأب
+      await db.person.update({
+        where: { id: data.linkedSonId },
+        data: { fatherId: newPerson.id },
+      });
+    }
 
     return NextResponse.json({ success: true, person: newPerson });
   } catch (error) {
