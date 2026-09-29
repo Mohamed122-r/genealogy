@@ -12,6 +12,7 @@ import {
   TreePine,
   FileText,
   UserCircle,
+  Shield,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -21,13 +22,24 @@ const menuItems = [
   { href: "/admin/dashboard", label: "الرئيسية", icon: LayoutDashboard },
   { href: "/admin/people", label: "الأشخاص", icon: Users },
   { href: "/admin/pages", label: "الصفحات", icon: FileText },
+  { href: "/admin/users", label: "المستخدمون", icon: Shield, adminOnly: true },
   { href: "/admin/logs", label: "سجل العمليات", icon: History },
   { href: "/admin/settings", label: "الإعدادات", icon: Settings },
   { href: "/admin/account", label: "حسابي", icon: UserCircle },
 ];
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  userRole?: string;
+}
+
+export function AdminSidebar({ userRole = "VIEWER" }: AdminSidebarProps) {
   const pathname = usePathname();
+  const isAdmin = ["SUPER_ADMIN", "ADMIN"].includes(userRole);
+
+  // فلترة العناصر حسب الصلاحية
+  const visibleItems = menuItems.filter(
+    (item) => !item.adminOnly || isAdmin
+  );
 
   return (
     <aside className="w-64 bg-dark-bg text-white flex flex-col h-screen sticky top-0 border-l border-gold-500/20">
@@ -46,7 +58,7 @@ export function AdminSidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {menuItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
