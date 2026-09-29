@@ -6,6 +6,7 @@ import { calculateTreeLayout, getTreeBounds } from "@/lib/tree/tree-layout";
 import { ZoomIn, ZoomOut, RotateCcw, Maximize2, Search } from "lucide-react";
 import { TreeLeaf } from "./TreeLeaf";
 import { Tooltip } from "./Tooltip";
+import { AdvancedSearch } from "./AdvancedSearch";
 
 interface TreeCanvasProps {
   nodes: PersonNode[];
@@ -32,8 +33,8 @@ export function TreeCanvas({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [hoveredNode, setHoveredNode] = useState<LayoutNode | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
 
-  // ===== Layout =====
   const layoutNodes = useMemo(
     () =>
       calculateTreeLayout(nodes, {
@@ -57,8 +58,10 @@ export function TreeCanvas({
     });
   }, [treeBounds]);
 
-  // ===== حساب العقد المُضاءة (الشخص + آبائه + أبنائه) =====
-  const highlightedNodeIds = useMemo(() => {
+  // =====================================================
+  // إضاءة فرع البحث (السريع)
+  // =====================================================
+  const searchHighlightedIds = useMemo(() => {
     if (!searchTerm.trim()) return new Set<string>();
 
     const searchLower = searchTerm.trim().toLowerCase();
@@ -71,7 +74,6 @@ export function TreeCanvas({
     const highlighted = new Set<string>();
     highlighted.add(found.id);
 
-    // إضافة كل الآباء (صعوداً)
     let currentFatherId = found.fatherId;
     while (currentFatherId) {
       highlighted.add(currentFatherId);
@@ -79,7 +81,6 @@ export function TreeCanvas({
       currentFatherId = father?.fatherId || null;
     }
 
-    // إضافة كل الأبناء (نزولاً)
     function addDescendants(nodeId: string) {
       const children = layoutNodes.filter((n) => n.fatherId === nodeId);
       children.forEach((child) => {
@@ -92,7 +93,14 @@ export function TreeCanvas({
     return highlighted;
   }, [searchTerm, layoutNodes]);
 
-  // ===== دوال التحكم =====
+  // ✅ دمج الإضاءات (بحث سريع + بحث متقدم)
+  const effectiveHighlightedIds = useMemo(() => {
+    const combined = new Set<string>();
+    searchHighlightedIds.forEach((id) => combined.add(id));
+    highlightedIds.forEach((id) => combined.add(id));
+    return combined;
+  }, [searchHighlightedIds, highlightedIds]);
+
   const handleZoom = (direction: "in" | "out") => {
     setZoomLevel((prev) => Math.min(5, Math.max(0.5, direction === "in" ? prev * 1.2 : prev / 1.2)));
   };
@@ -123,6 +131,8 @@ export function TreeCanvas({
       width: treeBounds.width + padding * 2,
       height: treeBounds.height + padding * 4,
     });
+    setSearchTerm("");
+    setHighlightedIds(new Set());
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -167,16 +177,17 @@ export function TreeCanvas({
     }
   };
 
-  // ===== إحداثيات الجذع =====
+  // إحداثيات الجذع
   const rootNodes = layoutNodes.filter((n) => !n.fatherId);
-  const rootX = rootNodes.length > 0 ? rootNodes.reduce((sum, n) => sum + n.x, 0) / rootNodes.length : (treeBounds.minX + treeBounds.maxX) / 2;
+  const rootX = rootNodes.length > 0
+    ? rootNodes.reduce((sum, n) => sum + n.x, 0) / rootNodes.length
+    : (treeBounds.minX + treeBounds.maxX) / 2;
   const rootY = rootNodes.length > 0 ? rootNodes[0].y : treeBounds.maxY;
   const trunkTopY = rootY + LEAF_HEIGHT / 2 - 10;
   const trunkBottomY = rootY + LEAF_HEIGHT / 2 + 120;
   const groundLineY = trunkBottomY + 15;
   const trunkHeight = trunkBottomY - trunkTopY;
 
-  // ===== الأدوات المساعدة =====
   const handleLeafHover = (e: React.MouseEvent, node: LayoutNode) => {
     setHoveredNode(node);
     setTooltipPos({ x: e.clientX, y: e.clientY - 20 });
@@ -202,16 +213,7 @@ export function TreeCanvas({
       {[...Array(8)].map((_, i) => {
         const yOff = (trunkHeight / 9) * (i + 1);
         const xOff = 90 - i * 8;
-        return (
-          <path
-            key={i}
-            d={`M ${rootX - xOff} ${trunkBottomY - yOff} Q ${rootX - xOff / 2} ${trunkBottomY - yOff - 15} ${rootX} ${trunkBottomY - yOff - 8}`}
-            stroke="#2A1506"
-            strokeWidth="1.5"
-            fill="none"
-            opacity="0.4"
-          />
-        );
+        return <path key={i} d={`M ${rootX - xOff} ${trunkBottomY - yOff} Q ${rootX - xOff / 2} ${trunkBottomY - yOff - 15} ${rootX} ${trunkBottomY - yOff - 8}`} stroke="#2A1506" strokeWidth="1.5" fill="none" opacity="0.4" />;
       })}
     </g>
   );
@@ -223,30 +225,24 @@ export function TreeCanvas({
       if (children.length === 0) return [];
 
       const isRoot = !node.fatherId;
-
       const startX = isRoot ? rootX : node.x;
       const startY = isRoot ? trunkTopY + 20 : node.y + LEAF_HEIGHT / 2 + 5;
 
       return children.map((child) => {
         const endX = child.x;
         const endY = child.y - LEAF_HEIGHT / 2 - 5;
-
         const dy = endY - startY;
         const curveHeight = dy * 0.4;
-
         const ctrl1X = startX;
         const ctrl1Y = startY + curveHeight;
         const ctrl2X = endX;
         const ctrl2Y = endY - curveHeight;
-
         const path = `M ${startX} ${startY} C ${ctrl1X} ${ctrl1Y}, ${ctrl2X} ${ctrl2Y}, ${endX} ${endY}`;
 
-        // هل الفرع مُضاء؟
         const isBranchHighlighted =
-          highlightedNodeIds.has(node.id) && highlightedNodeIds.has(child.id);
-
+          effectiveHighlightedIds.has(node.id) && effectiveHighlightedIds.has(child.id);
         const isBranchDimmed =
-          highlightedNodeIds.size > 0 && !isBranchHighlighted;
+          effectiveHighlightedIds.size > 0 && !isBranchHighlighted;
 
         let branchColor = "#5D3A1A";
         let branchLight = "#8B5A2B";
@@ -279,8 +275,15 @@ export function TreeCanvas({
         key={node.id}
         node={node}
         isSelected={selectedPersonId === node.id}
-        isHighlighted={highlightedNodeIds.has(node.id) && selectedPersonId !== node.id}
-        isDimmed={highlightedNodeIds.size > 0 && !highlightedNodeIds.has(node.id) && selectedPersonId !== node.id}
+        isHighlighted={
+          effectiveHighlightedIds.has(node.id) &&
+          selectedPersonId !== node.id
+        }
+        isDimmed={
+          effectiveHighlightedIds.size > 0 &&
+          !effectiveHighlightedIds.has(node.id) &&
+          selectedPersonId !== node.id
+        }
         onClick={() => onSelectPerson(node.id)}
         onMouseEnter={handleLeafHover}
         onMouseLeave={handleLeafLeave}
@@ -295,23 +298,30 @@ export function TreeCanvas({
         <div className="absolute inset-3 border border-gold-500/30 rounded-xl" />
       </div>
 
-      {/* أدوات التحكم */}
+      {/* شريط الأدوات الجانبي */}
       <div className="absolute top-6 right-6 z-20 flex flex-col gap-2 bg-dark-bg/95 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-gold-500/30">
         <button onClick={() => handleZoom("in")} className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"><ZoomIn className="w-5 h-5" /></button>
         <button onClick={() => handleZoom("out")} className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"><ZoomOut className="w-5 h-5" /></button>
-        <button onClick={resetView} className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"><RotateCcw className="w-5 h-5" /></button>
+        <button onClick={resetView} className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all" title="إعادة ضبط"><RotateCcw className="w-5 h-5" /></button>
         <button onClick={() => svgRef.current?.requestFullscreen()} className="p-2 text-white hover:bg-gold-500 hover:text-dark-bg rounded-xl transition-all"><Maximize2 className="w-5 h-5" /></button>
       </div>
 
-      {/* البحث */}
-      <div className="absolute top-6 left-6 z-20 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-2 flex items-center gap-2 w-64 border border-gold-500/30">
-        <Search className="w-4 h-4 text-gold-500" />
-        <input
-          type="text"
-          placeholder="ابحث عن شخص..."
-          value={searchTerm}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="bg-transparent outline-none w-full text-sm text-dark-bg placeholder:text-gray-400"
+      {/* شريط البحث السريع + البحث المتقدم */}
+      <div className="absolute top-6 left-6 z-20 flex items-center gap-2">
+        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-2 flex items-center gap-2 w-56 border border-gold-500/30">
+          <Search className="w-4 h-4 text-gold-500" />
+          <input
+            type="text"
+            placeholder="ابحث سريعاً..."
+            value={searchTerm}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="bg-transparent outline-none w-full text-sm text-dark-bg placeholder:text-gray-400"
+          />
+        </div>
+        <AdvancedSearch
+          nodes={layoutNodes}
+          onSelectPerson={onSelectPerson}
+          onHighlight={setHighlightedIds}
         />
       </div>
 
@@ -326,10 +336,7 @@ export function TreeCanvas({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleMouseUp}
       >
-        <div
-          style={{ transform: `scale(${zoomLevel})`, transformOrigin: "center", transition: "transform 0.3s ease-out" }}
-          className="w-full h-full"
-        >
+        <div style={{ transform: `scale(${zoomLevel})`, transformOrigin: "center", transition: "transform 0.3s ease-out" }} className="w-full h-full">
           <svg ref={svgRef} viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`} className="w-full h-full">
             <defs>
               <radialGradient id="bgGradient" cx="50%" cy="30%" r="90%">
@@ -365,7 +372,6 @@ export function TreeCanvas({
         <span className="font-bold mr-2 text-lg">{layoutNodes.length}</span>
       </div>
 
-      {/* البالونة المنبثقة */}
       <Tooltip node={hoveredNode} position={tooltipPos} allNodes={layoutNodes} />
     </div>
   );
