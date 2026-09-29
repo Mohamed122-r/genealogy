@@ -248,3 +248,20 @@
   height: 0;
   pointer-events: none;
 }
+/* ============================================
+   أنماط الصور في TipTap
+   ============================================ */
+.ProseMirror img,
+.tiptap-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  margin: 1rem auto;
+  display: block;
+}
+
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 3px solid #C9A227;
+  outline-offset: 4px;
+}
