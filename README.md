@@ -156,8 +156,9 @@
 
 ### 🔐 لوحة التحكم
 
-**الوصول:** https://genealogygenealogy.netlify.app/admin
+**الوصول:** 
 
+https://genealogygenealogy.netlify.app/admin/dashboard
 **القائمة الجانبية:**
 
 | القسم | الوصف |
