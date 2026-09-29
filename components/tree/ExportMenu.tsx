@@ -1,7 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileText, Image as ImageIcon, Loader2, X } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  X,
+  Settings,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
 interface ExportMenuProps {
   svgRef: React.RefObject<SVGSVGElement>;
@@ -14,9 +23,42 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+
+  // إعدادات التصدير
+  const [title, setTitle] = useState("شجرة النسب العائلية الكريمة");
+  const [subtitle, setSubtitle] = useState("");
+  const [footerLines, setFooterLines] = useState<string[]>([
+    "تم إعداد هذه الشجرة بواسطة Mohamed Abdalwhab",
+  ]);
 
   // =====================================================
-  // تصدير PDF
+  // إضافة سطر جديد
+  // =====================================================
+  function addFooterLine() {
+    if (footerLines.length < 5) {
+      setFooterLines([...footerLines, ""]);
+    }
+  }
+
+  // =====================================================
+  // حذف سطر
+  // =====================================================
+  function removeFooterLine(index: number) {
+    setFooterLines(footerLines.filter((_, i) => i !== index));
+  }
+
+  // =====================================================
+  // تحديث سطر
+  // =====================================================
+  function updateFooterLine(index: number, value: string) {
+    const updated = [...footerLines];
+    updated[index] = value;
+    setFooterLines(updated);
+  }
+
+  // =====================================================
+  // إنشاء صورة PDF من الشجرة + العناوين
   // =====================================================
   async function exportPDF(size: PaperSize) {
     if (!svgRef.current) return;
@@ -27,9 +69,9 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       const { jsPDF } = await import("jspdf");
       const { toPng } = await import("html-to-image");
 
-      // الحصول على أبعاد الورق
+      // أبعاد الورق (أفقياً)
       const paperSizes: Record<PaperSize, [number, number]> = {
-        A4: [297, 210],   // [width, height] بالأفقي
+        A4: [297, 210],
         A3: [420, 297],
         A2: [594, 420],
         A1: [841, 594],
@@ -38,26 +80,75 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
 
       const [paperWidth, paperHeight] = paperSizes[size];
 
-      // تحويل SVG إلى صورة عالية الدقة
+      // تحويل SVG إلى صورة
       setProgress("جاري تحويل الشجرة إلى صورة...");
-
       const svgElement = svgRef.current;
       const dataUrl = await toPng(svgElement as unknown as HTMLElement, {
-        pixelRatio: 4, // جودة عالية
+        pixelRatio: 4,
         backgroundColor: "#FDFBF3",
         cacheBust: true,
       });
 
       // إنشاء PDF
-      setProgress("جاري إنشاء ملف PDF...");
-
+      setProgress("جاري إنشاء PDF...");
       const pdf = new jsPDF({
         orientation: "landscape",
         unit: "mm",
         format: [paperWidth, paperHeight],
       });
 
-      // حساب أبعاد الصورة (مع الحفاظ على النسبة)
+      // ============================================
+      // إضافة خلفية كريمية
+      // ============================================
+      pdf.setFillColor(253, 251, 243);
+      pdf.rect(0, 0, paperWidth, paperHeight, "F");
+
+      // ============================================
+      // إضافة إطار ذهبي
+      // ============================================
+      pdf.setDrawColor(201, 162, 39);
+      pdf.setLineWidth(0.8);
+      pdf.rect(5, 5, paperWidth - 10, paperHeight - 10);
+      pdf.setLineWidth(0.3);
+      pdf.rect(8, 8, paperWidth - 16, paperHeight - 16);
+
+      // ============================================
+      // إضافة العنوان الرئيسي
+      // ============================================
+      let currentY = 20;
+      if (title) {
+        pdf.setFontSize(24);
+        pdf.setTextColor(10, 23, 17);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(title, paperWidth / 2, currentY, { align: "center" });
+        currentY += 10;
+      }
+
+      // العنوان الفرعي
+      if (subtitle) {
+        pdf.setFontSize(14);
+        pdf.setTextColor(139, 90, 43);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(subtitle, paperWidth / 2, currentY, { align: "center" });
+        currentY += 8;
+      }
+
+      // خط فاصل
+      pdf.setDrawColor(201, 162, 39);
+      pdf.setLineWidth(0.5);
+      pdf.line(paperWidth / 2 - 30, currentY, paperWidth / 2 + 30, currentY);
+      currentY += 5;
+
+      // ============================================
+      // إضافة الشجرة (وسط الصفحة)
+      // ============================================
+      const treeTopY = currentY;
+      const footerHeight = 15 + footerLines.filter((l) => l.trim()).length * 7;
+      const treeBottomY = paperHeight - footerHeight - 10;
+      const treeAvailableHeight = treeBottomY - treeTopY;
+      const treeAvailableWidth = paperWidth - 30;
+
+      // حساب أبعاد الصورة مع الحفاظ على النسبة
       const img = new Image();
       img.src = dataUrl;
       await new Promise((resolve) => {
@@ -65,26 +156,44 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       });
 
       const imgRatio = img.width / img.height;
-      const pageRatio = paperWidth / paperHeight;
+      const availableRatio = treeAvailableWidth / treeAvailableHeight;
 
-      let imgWidth = paperWidth;
-      let imgHeight = paperWidth / imgRatio;
+      let imgWidth = treeAvailableWidth;
+      let imgHeight = treeAvailableWidth / imgRatio;
 
-      if (imgRatio < pageRatio) {
-        imgHeight = paperHeight;
-        imgWidth = paperHeight * imgRatio;
+      if (imgRatio < availableRatio) {
+        imgHeight = treeAvailableHeight;
+        imgWidth = treeAvailableHeight * imgRatio;
       }
 
-      const offsetX = (paperWidth - imgWidth) / 2;
-      const offsetY = (paperHeight - imgHeight) / 2;
+      const imgX = (paperWidth - imgWidth) / 2;
+      const imgY = treeTopY + (treeAvailableHeight - imgHeight) / 2;
 
-      // إضافة العنوان
-      pdf.setFontSize(24);
-      pdf.setTextColor(201, 162, 39);
-      pdf.text(treeTitle, paperWidth / 2, 15, { align: "center" });
+      pdf.addImage(dataUrl, "PNG", imgX, imgY, imgWidth, imgHeight, undefined, "FAST");
 
-      // إضافة الصورة
-      pdf.addImage(dataUrl, "PNG", offsetX, offsetY, imgWidth, imgHeight - 10, undefined, "FAST");
+      // ============================================
+      // إضافة التفاصيل في الأسفل
+      // ============================================
+      const validFooterLines = footerLines.filter((l) => l.trim());
+      if (validFooterLines.length > 0) {
+        const footerY = paperHeight - footerHeight - 5;
+
+        // خط فاصل
+        pdf.setDrawColor(201, 162, 39);
+        pdf.setLineWidth(0.5);
+        pdf.line(20, footerY - 5, paperWidth - 20, footerY - 5);
+
+        // الأسطر
+        pdf.setFontSize(10);
+        pdf.setTextColor(80, 80, 80);
+        pdf.setFont("helvetica", "normal");
+
+        validFooterLines.forEach((line, index) => {
+          pdf.text(line, paperWidth / 2, footerY + index * 6, {
+            align: "center",
+          });
+        });
+      }
 
       // حفظ الملف
       pdf.save(`${treeTitle}-${size}.pdf`);
@@ -112,7 +221,6 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
 
     try {
       const { toPng } = await import("html-to-image");
-
       const dataUrl = await toPng(svgRef.current as unknown as HTMLElement, {
         pixelRatio: 4,
         backgroundColor: "#FDFBF3",
@@ -151,8 +259,8 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
 
       {/* القائمة المنبثقة */}
       {isOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden my-8">
             {/* الرأس */}
             <div className="bg-dark-bg text-white p-4 flex justify-between items-center">
               <h2 className="text-xl font-bold flex items-center gap-2">
@@ -169,7 +277,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
             </div>
 
             {/* المحتوى */}
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               {isExporting ? (
                 <div className="text-center py-8">
                   <Loader2 className="w-12 h-12 text-gold-500 animate-spin mx-auto mb-4" />
@@ -180,13 +288,100 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
                 </div>
               ) : (
                 <>
+                  {/* زر إعدادات التصدير */}
+                  <button
+                    onClick={() => setShowSettings(!showSettings)}
+                    className="w-full bg-heritage-bg border border-gold-500/30 rounded-lg p-3 flex items-center justify-between hover:bg-gold-500/5 transition"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Settings className="w-4 h-4 text-gold-500" />
+                      <span className="font-bold text-dark-bg">
+                        إعدادات العنوان والتفاصيل
+                      </span>
+                    </div>
+                    <span className="text-xs text-gold-500">
+                      {showSettings ? "إخفاء" : "إظهار"}
+                    </span>
+                  </button>
+
+                  {/* إعدادات التصدير */}
+                  {showSettings && (
+                    <div className="bg-heritage-bg border border-gold-500/30 rounded-lg p-4 space-y-4">
+                      {/* العنوان الرئيسي */}
+                      <div>
+                        <label className="block text-sm font-bold mb-2 text-dark-bg">
+                          العنوان الرئيسي (يظهر في الأعلى)
+                        </label>
+                        <input
+                          type="text"
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
+                          placeholder="شجرة النسب العائلية الكريمة"
+                        />
+                      </div>
+
+                      {/* العنوان الفرعي */}
+                      <div>
+                        <label className="block text-sm font-bold mb-2 text-dark-bg">
+                          العنوان الفرعي (اختياري)
+                        </label>
+                        <input
+                          type="text"
+                          value={subtitle}
+                          onChange={(e) => setSubtitle(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
+                          placeholder="مثال: قبيلة آل ..."
+                        />
+                      </div>
+
+                      {/* التفاصيل السفلية */}
+                      <div>
+                        <label className="block text-sm font-bold mb-2 text-dark-bg">
+                          التفاصيل السفلية (حتى 5 أسطر)
+                        </label>
+                        <div className="space-y-2">
+                          {footerLines.map((line, index) => (
+                            <div key={index} className="flex gap-2">
+                              <input
+                                type="text"
+                                value={line}
+                                onChange={(e) => updateFooterLine(index, e.target.value)}
+                                className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500 text-sm"
+                                placeholder={`السطر ${index + 1}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeFooterLine(index)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+
+                          {footerLines.length < 5 && (
+                            <button
+                              type="button"
+                              onClick={addFooterLine}
+                              className="w-full flex items-center justify-center gap-2 p-2 border-2 border-dashed border-gold-500/40 rounded-lg text-gold-600 hover:bg-gold-500/5 transition text-sm font-bold"
+                            >
+                              <Plus className="w-4 h-4" />
+                              إضافة سطر ({footerLines.length}/5)
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* PDF */}
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <FileText className="w-5 h-5 text-red-600" />
                       <h3 className="font-bold text-dark-bg">تصدير PDF للطباعة</h3>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {(["A4", "A3", "A2", "A1", "A0"] as PaperSize[]).map((size) => (
                         <button
                           key={size}
