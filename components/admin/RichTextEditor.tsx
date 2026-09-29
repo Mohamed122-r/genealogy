@@ -8,6 +8,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import Placeholder from "@tiptap/extension-placeholder";
+import Image from "@tiptap/extension-image";
 import {
   Bold,
   Italic,
@@ -26,6 +27,7 @@ import {
   Redo,
   Link as LinkIcon,
   Type,
+  Image as ImageIcon,
 } from "lucide-react";
 
 interface RichTextEditorProps {
@@ -55,6 +57,14 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
       Placeholder.configure({
         placeholder: placeholder || "اكتب المحتوى هنا...",
       }),
+      // ✅ إضافة دعم الصور
+      Image.configure({
+        inline: false,
+        allowBase64: true,
+        HTMLAttributes: {
+          class: "rounded-lg shadow-lg max-w-full h-auto my-4 mx-auto block",
+        },
+      }),
     ],
     content: value,
     onUpdate: ({ editor }) => {
@@ -73,7 +83,39 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
   if (!editor) return null;
 
   // =====================================================
-  // شريط الأدوات
+  // رفع الصور
+  // =====================================================
+  const handleImageUpload = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      // التحقق من حجم الصورة (بحد أقصى 2 ميجابايت)
+      if (file.size > 2 * 1024 * 1024) {
+        alert("حجم الصورة كبير جداً. الحد الأقصى 2 ميجابايت.");
+        return;
+      }
+
+      // تحويل الصورة إلى Base64
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        if (base64) {
+          editor.chain().focus().setImage({ src: base64 }).run();
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+
+    input.click();
+  };
+
+  // =====================================================
+  // زر شريط الأدوات
   // =====================================================
   const ToolbarButton = ({
     onClick,
@@ -232,6 +274,14 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           title="إضافة رابط"
         >
           <LinkIcon className="w-4 h-4" />
+        </ToolbarButton>
+
+        {/* ✅ الصورة */}
+        <ToolbarButton
+          onClick={handleImageUpload}
+          title="إضافة صورة"
+        >
+          <ImageIcon className="w-4 h-4" />
         </ToolbarButton>
 
         <Divider />
