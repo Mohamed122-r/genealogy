@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TreePine, Users, BookOpen, ScrollText, Feather, Landmark } from "lucide-react";
+import { StatisticsSection } from "@/components/public/StatisticsSection";
 
 export default async function HomePage() {
   return (
@@ -19,7 +20,7 @@ export default async function HomePage() {
           </svg>
         </div>
 
-        <div className="container mx-auto px-4 relative z-10 text-center animate-fade-in">
+        <div className="container mx-auto px-4 relative z-10 text-center">
           <div className="inline-flex items-center gap-2 bg-gold-500/20 border border-gold-500/50 px-4 py-2 rounded-full mb-6">
             <Feather className="w-4 h-4 text-gold-500" />
             <span className="text-gold-500 font-semibold text-sm">منصة رقمية موثوقة</span>
@@ -71,8 +72,7 @@ export default async function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* ميزة 1 */}
-            <div className="card-elegant text-center animate-fade-in">
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gold-500/20 text-center hover:shadow-xl transition-all">
               <div className="w-16 h-16 mx-auto bg-dark-bg rounded-2xl flex items-center justify-center mb-4 shadow-lg">
                 <Landmark className="w-8 h-8 text-gold-500" />
               </div>
@@ -82,8 +82,7 @@ export default async function HomePage() {
               </p>
             </div>
 
-            {/* ميزة 2 */}
-            <div className="card-elegant text-center animate-fade-in">
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gold-500/20 text-center hover:shadow-xl transition-all">
               <div className="w-16 h-16 mx-auto bg-dark-bg rounded-2xl flex items-center justify-center mb-4 shadow-lg">
                 <TreePine className="w-8 h-8 text-gold-500" />
               </div>
@@ -93,8 +92,7 @@ export default async function HomePage() {
               </p>
             </div>
 
-            {/* ميزة 3 */}
-            <div className="card-elegant text-center animate-fade-in">
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gold-500/20 text-center hover:shadow-xl transition-all">
               <div className="w-16 h-16 mx-auto bg-dark-bg rounded-2xl flex items-center justify-center mb-4 shadow-lg">
                 <Users className="w-8 h-8 text-gold-500" />
               </div>
@@ -106,6 +104,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ✅ قسم الإحصائيات الجديد */}
+      <StatisticsSection />
 
       {/* ===== قسم دعوة للإجراء (CTA) ===== */}
       <section className="bg-dark-bg text-white py-16 relative overflow-hidden">
