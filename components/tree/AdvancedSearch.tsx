@@ -20,22 +20,17 @@ export function AdvancedSearch({ nodes, onSelectPerson, onHighlight }: AdvancedS
   const [selectedGeneration, setSelectedGeneration] = useState<string>("");
   const [results, setResults] = useState<LayoutNode[]>([]);
 
-  // الأجيال المتاحة
   const availableGenerations = useMemo(() => {
     const gens = new Set(nodes.map((n) => n.depth));
     return Array.from(gens).sort((a, b) => a - b);
   }, [nodes]);
 
-  // الحصول على اسم الأب
   const getFatherName = (node: LayoutNode): string => {
     if (!node.fatherId) return "—";
     const father = nodes.find((n) => n.id === node.fatherId);
     return father?.fullName || "—";
   };
 
-  // =====================================================
-  // تنفيذ البحث
-  // =====================================================
   function performSearch() {
     let found: LayoutNode[] = [];
 
@@ -68,24 +63,17 @@ export function AdvancedSearch({ nodes, onSelectPerson, onHighlight }: AdvancedS
       }
     }
 
-    // ترتيب النتائج حسب الجيل
     found.sort((a, b) => a.depth - b.depth);
-
     setResults(found);
 
-    // إضاءة النتائج في الشجرة
     const ids = new Set(found.map((n) => n.id));
     onHighlight(ids);
 
-    // إذا كانت النتيجة شخصاً واحداً، تمركز عليه
     if (found.length === 1) {
       onSelectPerson(found[0].id);
     }
   }
 
-  // =====================================================
-  // إعادة ضبط البحث
-  // =====================================================
   function resetSearch() {
     setNameQuery("");
     setFatherQuery("");
@@ -94,17 +82,16 @@ export function AdvancedSearch({ nodes, onSelectPerson, onHighlight }: AdvancedS
     onHighlight(new Set());
   }
 
-  // =====================================================
-  // الحصول على اسم الجيل
-  // =====================================================
+  function closeAndReset() {
+    setIsOpen(false);
+    resetSearch();
+  }
+
   function getGenerationName(gen: number): string {
     if (gen === 0) return "الجيل الأول (الجذور)";
     return `الجيل ${gen + 1}`;
   }
 
-  // =====================================================
-  // الحصول على اسم الحالة
-  // =====================================================
   function getStatusLabel(status: string): string {
     switch (status) {
       case "ALIVE": return "حي";
@@ -139,17 +126,20 @@ export function AdvancedSearch({ nodes, onSelectPerson, onHighlight }: AdvancedS
       {isOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-start justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mt-8 mb-8">
-            {/* الرأس */}
+            {/* الرأس مع زر الإغلاق */}
             <div className="bg-dark-bg text-white p-4 flex justify-between items-center rounded-t-2xl">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <Search className="w-5 h-5 text-gold-500" />
                 البحث المتقدم في المشجرة
               </h2>
+              {/* ✅ زر الإغلاق */}
               <button
-                onClick={() => setIsOpen(false)}
-                className="p-1 hover:bg-white/20 rounded-lg transition"
+                onClick={closeAndReset}
+                className="p-2 hover:bg-white/20 rounded-lg transition-all duration-200 group"
+                title="إغلاق"
+                aria-label="إغلاق"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-200" />
               </button>
             </div>
 
@@ -209,7 +199,7 @@ export function AdvancedSearch({ nodes, onSelectPerson, onHighlight }: AdvancedS
               </div>
             </div>
 
-            {/* حقول البحث حسب النمط */}
+            {/* حقول البحث */}
             <div className="p-6 border-b border-gray-200 space-y-4">
               {mode === "name" && (
                 <div>
@@ -221,6 +211,7 @@ export function AdvancedSearch({ nodes, onSelectPerson, onHighlight }: AdvancedS
                     onKeyDown={(e) => e.key === "Enter" && performSearch()}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
                     placeholder="اكتب الاسم..."
+                    autoFocus
                   />
                 </div>
               )}
@@ -236,6 +227,7 @@ export function AdvancedSearch({ nodes, onSelectPerson, onHighlight }: AdvancedS
                       onKeyDown={(e) => e.key === "Enter" && performSearch()}
                       className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
                       placeholder="اكتب الاسم..."
+                      autoFocus
                     />
                   </div>
                   <div>
@@ -273,7 +265,6 @@ export function AdvancedSearch({ nodes, onSelectPerson, onHighlight }: AdvancedS
                 </div>
               )}
 
-              {/* أزرار البحث */}
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -355,7 +346,7 @@ export function AdvancedSearch({ nodes, onSelectPerson, onHighlight }: AdvancedS
               </div>
             )}
 
-            {results.length === 0 && mode && (
+            {results.length === 0 && (
               <div className="p-6 text-center">
                 <Search className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 text-sm">
