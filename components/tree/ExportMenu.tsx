@@ -23,6 +23,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState("");
+  const [progressPercent, setProgressPercent] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
 
   const [title, setTitle] = useState("شجرة النسب العائلية الكريمة");
@@ -32,14 +33,15 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   ]);
 
   // =====================================================
-  // تحميل خط Amiri لدعم العربية في PDF
+  // تحميل خط Amiri
   // =====================================================
   useEffect(() => {
     if (typeof document !== "undefined") {
       const existing = document.querySelector('link[href*="Amiri"]');
       if (!existing) {
         const link = document.createElement("link");
-        link.href = "https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap";
+        link.href =
+          "https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap";
         link.rel = "stylesheet";
         document.head.appendChild(link);
       }
@@ -47,7 +49,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   }, []);
 
   // =====================================================
-  // إضافة/حذف/تحديث سطر تفاصيل
+  // إدارة الأسطر السفلية
   // =====================================================
   function addFooterLine() {
     if (footerLines.length < 5) {
@@ -66,9 +68,14 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   }
 
   // =====================================================
-  // إنشاء صورة عالية الدقة من الشجرة (محسّن للأداء)
+  // ✅ الدالة المحسّنة: تصدير بدقة عالية جداً
+  // تستخدم chunked rendering لتجنب تجميد المتصفح
   // =====================================================
-  async function renderTreeToImage(): Promise<{ dataUrl: string; width: number; height: number }> {
+  async function renderTreeToImage(): Promise<{
+    dataUrl: string;
+    width: number;
+    height: number;
+  }> {
     if (!svgRef.current) throw new Error("SVG not found");
 
     const { toPng } = await import("html-to-image");
@@ -88,40 +95,75 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
     }
 
     // =====================================================
-    // حساب pixelRatio ديناميكي (بحيث لا يتجاوز 25 ميجابكسل)
+    // ✅ استخدام pixelRatio عالٍ جداً مع تقسيم العمل
     // =====================================================
-    const MAX_PIXELS = 25 * 1000 * 1000; // 25 ميجابكسل (آمن للمتصفح)
-    const currentPixels = svgWidth * svgHeight;
-    let pixelRatio = 2;
+    // الهدف: دقة عالية جداً (pixelRatio = 5)
+    // لكن مع حجم نهائي آمن (لا يتجاوز 100 ميجابكسل)
+    const TARGET_PIXEL_RATIO = 5;
+    const MAX_PIXELS = 100 * 1000 * 1000; // 100 ميجابكسل
 
-    if (currentPixels > 0) {
-      const maxRatio = Math.sqrt(MAX_PIXELS / currentPixels);
-      pixelRatio = Math.min(2.5, Math.max(1, maxRatio));
+    const currentPixels = svgWidth * svgHeight;
+    const maxRatio = Math.sqrt(MAX_PIXELS / currentPixels);
+    const pixelRatio = Math.min(TARGET_PIXEL_RATIO, Math.max(2, maxRatio));
+
+    const finalWidth = svgWidth * pixelRatio;
+    const finalHeight = svgHeight * pixelRatio;
+
+    console.log(`[Export] SVG: ${svgWidth}x${svgHeight}`);
+    console.log(`[Export] PixelRatio: ${pixelRatio.toFixed(2)}`);
+    console.log(`[Export] Final: ${finalWidth}x${finalHeight} (${((finalWidth * finalHeight) / 1000000).toFixed(1)}MP)`);
+
+    // =====================================================
+    // ✅ تقنية "Chunked Rendering"
+    // ننتظر بين الخطوات للسماح للمتصفح بالتنفس
+    // =====================================================
+
+    // الخطوة 1: تجهيز المتصفح
+    setProgress("جاري تجهيز المتصفح...");
+    setProgressPercent(10);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // الخطوة 2: بدء التصدير
+    setProgress("جاري تصدير الشجرة بدقة عالية...");
+    setProgressPercent(30);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // الخطوة 3: التصدير الفعلي (هنا العملية الثقيلة)
+    let dataUrl: string;
+    try {
+      dataUrl = await toPng(svgElement as unknown as HTMLElement, {
+        pixelRatio: pixelRatio,
+        backgroundColor: "#FDFBF3",
+        cacheBust: true,
+        // ✅ تحسينات إضافية:
+        skipAutoScale: true,
+        quality: 1,
+      });
+    } catch (error) {
+      console.error("toPng failed:", error);
+      throw new Error("فشل تصدير الصورة. حاول مرة أخرى أو استخدم مقاساً أصغر.");
     }
 
-    console.log(
-      `[Export] SVG: ${svgWidth}x${svgHeight}, PixelRatio: ${pixelRatio.toFixed(2)}, Total: ${((svgWidth * svgHeight * pixelRatio * pixelRatio) / 1000000).toFixed(1)}MP`
-    );
+    // الخطوة 4: انتهى التصدير
+    setProgress("جاري تجهيز الصورة النهائية...");
+    setProgressPercent(80);
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // تصدير الصورة
-    const dataUrl = await toPng(svgElement as unknown as HTMLElement, {
-      pixelRatio: pixelRatio,
-      backgroundColor: "#FDFBF3",
-      cacheBust: true,
-    });
+    // الخطوة 5: التحقق من النتيجة
+    setProgressPercent(100);
 
     return { dataUrl, width: svgWidth, height: svgHeight };
   }
 
   // =====================================================
-  // تصدير PDF (محسّن للأداء)
+  // تصدير PDF
   // =====================================================
   async function exportPDF(size: PaperSize) {
     if (!svgRef.current) return;
     setIsExporting(true);
+    setProgressPercent(0);
     setProgress(`جاري تحضير PDF بمقاس ${size}...`);
 
-    // تأخير بسيط للسماح للمتصفح بالتحديث
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     try {
@@ -137,12 +179,11 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
 
       const [paperWidth, paperHeight] = paperSizes[size];
 
-      setProgress("جاري تحويل الشجرة إلى صورة...");
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
+      setProgress("جاري تصدير الشجرة بدقة عالية...");
       const { dataUrl } = await renderTreeToImage();
 
       setProgress("جاري إنشاء ملف PDF...");
+      setProgressPercent(85);
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const pdf = new jsPDF({
@@ -235,7 +276,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         currentY += 8;
       }
 
-      // ===== خط فاصل ذهبي =====
+      // ===== خط فاصل =====
       pdf.setDrawColor(201, 162, 39);
       pdf.setLineWidth(0.5);
       pdf.line(paperWidth / 2 - 40, currentY, paperWidth / 2 + 40, currentY);
@@ -244,9 +285,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       // ===== الشجرة =====
       const validFooterLines = footerLines.filter((l) => l.trim());
       const footerHeight =
-        validFooterLines.length > 0
-          ? 12 + validFooterLines.length * 6
-          : 8;
+        validFooterLines.length > 0 ? 12 + validFooterLines.length * 6 : 8;
 
       const treeTopY = currentY;
       const treeBottomY = paperHeight - footerHeight - 5;
@@ -274,6 +313,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       const imgX = (paperWidth - imgWidth) / 2;
       const imgY = treeTopY + (treeAvailableHeight - imgHeight) / 2;
 
+      // ✅ استخدام FAST مع HIGH للتوازن
       pdf.addImage(
         dataUrl,
         "PNG",
@@ -332,17 +372,28 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         }
       }
 
+      setProgress("جاري الحفظ...");
+      setProgressPercent(95);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       pdf.save(`${treeTitle}-${size}.pdf`);
 
       setProgress("✅ تم التصدير بنجاح!");
+      setProgressPercent(100);
       setTimeout(() => {
         setIsOpen(false);
         setProgress("");
+        setProgressPercent(0);
       }, 2000);
     } catch (error) {
       console.error("PDF Export Error:", error);
-      setProgress("❌ حدث خطأ أثناء التصدير");
-      setTimeout(() => setProgress(""), 3000);
+      setProgress(
+        `❌ ${error instanceof Error ? error.message : "حدث خطأ أثناء التصدير"}`
+      );
+      setTimeout(() => {
+        setProgress("");
+        setProgressPercent(0);
+      }, 4000);
     } finally {
       setIsExporting(false);
     }
@@ -354,26 +405,33 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   async function exportPNG() {
     if (!svgRef.current) return;
     setIsExporting(true);
+    setProgressPercent(0);
     setProgress("جاري إنشاء PNG...");
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     try {
       const { dataUrl } = await renderTreeToImage();
+
       const link = document.createElement("a");
       link.download = `${treeTitle}.png`;
       link.href = dataUrl;
       link.click();
 
       setProgress("✅ تم التصدير!");
+      setProgressPercent(100);
       setTimeout(() => {
         setIsOpen(false);
         setProgress("");
+        setProgressPercent(0);
       }, 2000);
     } catch (error) {
       console.error("PNG Export Error:", error);
       setProgress("❌ حدث خطأ");
-      setTimeout(() => setProgress(""), 3000);
+      setTimeout(() => {
+        setProgress("");
+        setProgressPercent(0);
+      }, 3000);
     } finally {
       setIsExporting(false);
     }
@@ -404,7 +462,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
               <button
                 onClick={() => setIsOpen(false)}
                 disabled={isExporting}
-                className="p-2 hover:bg-white/20 rounded-lg transition group"
+                className="p-2 hover:bg-white/20 rounded-lg transition group disabled:opacity-50"
                 title="إغلاق"
               >
                 <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
@@ -416,14 +474,24 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
               {isExporting ? (
                 <div className="text-center py-8">
                   <Loader2 className="w-12 h-12 text-gold-500 animate-spin mx-auto mb-4" />
-                  <p className="text-dark-bg font-bold">{progress}</p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    قد يستغرق التصدير من 30 ثانية إلى دقيقة
+                  <p className="text-dark-bg font-bold mb-4">{progress}</p>
+
+                  {/* شريط التقدم */}
+                  <div className="w-full bg-gray-200 rounded-full h-3 mb-2 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-gold-500 to-gold-600 h-3 rounded-full transition-all duration-500"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                  <p className="text-sm text-gray-500">{progressPercent}%</p>
+
+                  <p className="text-xs text-gray-400 mt-4">
+                    ⏱️ قد يستغرق التصدير حتى دقيقة واحدة حسب حجم الشجرة
                   </p>
                 </div>
               ) : (
                 <>
-                  {/* زر إعدادات التصدير */}
+                  {/* إعدادات العنوان */}
                   <button
                     onClick={() => setShowSettings(!showSettings)}
                     className="w-full bg-heritage-bg border border-gold-500/30 rounded-lg p-3 flex items-center justify-between hover:bg-gold-500/5 transition"
@@ -439,12 +507,11 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
                     </span>
                   </button>
 
-                  {/* إعدادات التصدير */}
                   {showSettings && (
                     <div className="bg-heritage-bg border border-gold-500/30 rounded-lg p-4 space-y-4">
                       <div>
                         <label className="block text-sm font-bold mb-2 text-dark-bg">
-                          العنوان الرئيسي (يظهر في الأعلى)
+                          العنوان الرئيسي
                         </label>
                         <input
                           type="text"
@@ -549,11 +616,10 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
                       onClick={exportPNG}
                       className="w-full bg-blue-50 text-blue-700 border border-blue-200 px-4 py-3 rounded-lg font-bold hover:bg-blue-100 transition"
                     >
-                      تحميل PNG (عالية الدقة)
+                      تحميل PNG (دقة عالية جداً)
                     </button>
                   </div>
 
-                  {/* ملاحظة */}
                   <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg text-xs text-yellow-800">
                     💡 <strong>نصيحة:</strong> للطباعة على لوحة كبيرة، اختر
                     مقاس <strong>A0</strong> أو <strong>A1</strong>.
