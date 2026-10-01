@@ -25,36 +25,75 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   const [progress, setProgress] = useState("");
   const [progressPercent, setProgressPercent] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [isFontLoaded, setIsFontLoaded] = useState(false);
 
   const [title, setTitle] = useState("شجرة النسب العائلية الكريمة");
   const [subtitle, setSubtitle] = useState("");
+  const [description, setDescription] = useState("");
   const [footerLines, setFooterLines] = useState<string[]>([
     "تم إعداد هذه الشجرة بواسطة Mohamed Abdalwhab",
   ]);
 
   // =====================================================
-  // تحميل خط Amiri
+  // ✅ تحميل خط Amiri + انتظار جاهزيته
   // =====================================================
   useEffect(() => {
-    if (typeof document !== "undefined") {
-      const existing = document.querySelector('link[href*="Amiri"]');
-      if (!existing) {
+    let isMounted = true;
+
+    async function loadFonts() {
+      try {
+        // 1. تحميل الخط في HTML
         const link = document.createElement("link");
         link.href =
           "https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap";
         link.rel = "stylesheet";
         document.head.appendChild(link);
+
+        // 2. انتظار تحميل الخط
+        if (document.fonts) {
+          await document.fonts.load("bold 40px Amiri");
+          await document.fonts.load("24px Amiri");
+          await document.fonts.load("18px Amiri");
+          await document.fonts.ready;
+        }
+
+        if (isMounted) {
+          setIsFontLoaded(true);
+          console.log("[Export] Amiri font loaded successfully");
+        }
+      } catch (e) {
+        console.warn("[Export] Font loading failed:", e);
+        if (isMounted) setIsFontLoaded(true);
       }
     }
+
+    loadFonts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // =====================================================
+  // ✅ جلب الإعدادات من قاعدة البيانات
+  // =====================================================
+  useEffect(() => {
+    fetch("/api/admin/export-settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.treeTitle) setTitle(data.treeTitle);
+        if (data.treeSubtitle) setSubtitle(data.treeSubtitle);
+        if (data.treeDescription) setDescription(data.treeDescription);
+        if (data.footerLines?.length > 0) setFooterLines(data.footerLines);
+      })
+      .catch((err) => console.warn("Failed to load export settings:", err));
   }, []);
 
   // =====================================================
   // إدارة الأسطر السفلية
   // =====================================================
   function addFooterLine() {
-    if (footerLines.length < 5) {
-      setFooterLines([...footerLines, ""]);
-    }
+    if (footerLines.length < 5) setFooterLines([...footerLines, ""]);
   }
 
   function removeFooterLine(index: number) {
@@ -68,8 +107,72 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   }
 
   // =====================================================
-  // ✅ الدالة المحسّنة: تصدير بدقة عالية جداً
-  // تستخدم chunked rendering لتجنب تجميد المتصفح
+  // ✅ حفظ الإعدادات في قاعدة البيانات
+  // =====================================================
+  async function saveSettings() {
+    try {
+      await fetch("/api/admin/export-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          treeTitle: title,
+          treeSubtitle: subtitle,
+          treeDescription: description,
+        }),
+      });
+    } catch (error) {
+      console.warn("Failed to save settings:", error);
+    }
+  }
+
+  // =====================================================
+  // ✅ كتابة نص عربي على canvas (دقة عالية)
+  // =====================================================
+  function drawArabicText(
+    text: string,
+    options: {
+      fontSize: number;
+      fontFamily: string;
+      fontWeight?: string;
+      color: string;
+      align?: CanvasTextAlign;
+      maxWidth: number;
+    }
+  ): string {
+    const {
+      fontSize,
+      fontFamily,
+      fontWeight = "normal",
+      color,
+      align = "center",
+      maxWidth,
+    } = options;
+
+    // canvas بدقة عالية جداً (8x)
+    const dpr = 8;
+    const canvas = document.createElement("canvas");
+    canvas.width = maxWidth * dpr;
+    canvas.height = fontSize * 1.6 * dpr;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return "";
+
+    // ✅ استخدام خط Amiri المحمّل
+    ctx.font = `${fontWeight} ${fontSize * dpr}px '${fontFamily}', serif`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = "middle";
+    ctx.direction = "rtl";
+
+    // إضافة النص
+    const x = align === "center" ? canvas.width / 2 : align === "right" ? canvas.width - 10 : 10;
+    ctx.fillText(text, x, canvas.height / 2);
+
+    return canvas.toDataURL("image/png");
+  }
+
+  // =====================================================
+  // ✅ الدالة المحسّنة: تصدير بدقة عالية
   // =====================================================
   async function renderTreeToImage(): Promise<{
     dataUrl: string;
@@ -81,7 +184,6 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
     const { toPng } = await import("html-to-image");
     const svgElement = svgRef.current;
 
-    // الحصول على أبعاد viewBox
     const viewBox = svgElement.getAttribute("viewBox");
     let svgWidth = 1200;
     let svgHeight = 800;
@@ -94,64 +196,44 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       }
     }
 
-    // =====================================================
-    // ✅ استخدام pixelRatio عالٍ جداً مع تقسيم العمل
-    // =====================================================
-    // الهدف: دقة عالية جداً (pixelRatio = 5)
-    // لكن مع حجم نهائي آمن (لا يتجاوز 100 ميجابكسل)
     const TARGET_PIXEL_RATIO = 5;
-    const MAX_PIXELS = 100 * 1000 * 1000; // 100 ميجابكسل
+    const MAX_PIXELS = 100 * 1000 * 1000;
 
     const currentPixels = svgWidth * svgHeight;
     const maxRatio = Math.sqrt(MAX_PIXELS / currentPixels);
     const pixelRatio = Math.min(TARGET_PIXEL_RATIO, Math.max(2, maxRatio));
 
-    const finalWidth = svgWidth * pixelRatio;
-    const finalHeight = svgHeight * pixelRatio;
+    console.log(
+      `[Export] SVG: ${svgWidth}x${svgHeight}, PixelRatio: ${pixelRatio.toFixed(2)}, Total: ${((svgWidth * svgHeight * pixelRatio * pixelRatio) / 1000000).toFixed(1)}MP`
+    );
 
-    console.log(`[Export] SVG: ${svgWidth}x${svgHeight}`);
-    console.log(`[Export] PixelRatio: ${pixelRatio.toFixed(2)}`);
-    console.log(`[Export] Final: ${finalWidth}x${finalHeight} (${((finalWidth * finalHeight) / 1000000).toFixed(1)}MP)`);
-
-    // =====================================================
-    // ✅ تقنية "Chunked Rendering"
-    // ننتظر بين الخطوات للسماح للمتصفح بالتنفس
-    // =====================================================
-
-    // الخطوة 1: تجهيز المتصفح
     setProgress("جاري تجهيز المتصفح...");
     setProgressPercent(10);
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // الخطوة 2: بدء التصدير
     setProgress("جاري تصدير الشجرة بدقة عالية...");
     setProgressPercent(30);
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // الخطوة 3: التصدير الفعلي (هنا العملية الثقيلة)
     let dataUrl: string;
     try {
       dataUrl = await toPng(svgElement as unknown as HTMLElement, {
         pixelRatio: pixelRatio,
         backgroundColor: "#FDFBF3",
         cacheBust: true,
-        // ✅ تحسينات إضافية:
         skipAutoScale: true,
         quality: 1,
       });
     } catch (error) {
       console.error("toPng failed:", error);
-      throw new Error("فشل تصدير الصورة. حاول مرة أخرى أو استخدم مقاساً أصغر.");
+      throw new Error("فشل تصدير الصورة");
     }
 
-    // الخطوة 4: انتهى التصدير
-    setProgress("جاري تجهيز الصورة النهائية...");
+    setProgress("جاري تجهيز الصورة...");
     setProgressPercent(80);
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // الخطوة 5: التحقق من النتيجة
     setProgressPercent(100);
-
     return { dataUrl, width: svgWidth, height: svgHeight };
   }
 
@@ -165,6 +247,9 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
     setProgress(`جاري تحضير PDF بمقاس ${size}...`);
 
     await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // ✅ حفظ الإعدادات قبل التصدير
+    await saveSettings();
 
     try {
       const { jsPDF } = await import("jspdf");
@@ -193,96 +278,101 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         compress: true,
       });
 
-      // ===== الخلفية الكريمية =====
+      // الخلفية الكريمية
       pdf.setFillColor(253, 251, 243);
       pdf.rect(0, 0, paperWidth, paperHeight, "F");
 
-      // ===== الإطار الذهبي =====
+      // الإطار الذهبي
       pdf.setDrawColor(201, 162, 39);
       pdf.setLineWidth(1);
       pdf.rect(6, 6, paperWidth - 12, paperHeight - 12);
       pdf.setLineWidth(0.3);
       pdf.rect(10, 10, paperWidth - 20, paperHeight - 20);
 
-      // ===== العنوان الرئيسي =====
-      let currentY = 22;
+      // =====================================================
+      // ✅ العنوان الرئيسي (بخط Amiri واضح)
+      // =====================================================
+      let currentY = 24;
 
       if (title) {
-        try {
-          const titleCanvas = document.createElement("canvas");
-          titleCanvas.width = paperWidth * 8;
-          titleCanvas.height = 50;
-          const ctx = titleCanvas.getContext("2d");
-          if (ctx) {
-            ctx.fillStyle = "#FDFBF3";
-            ctx.fillRect(0, 0, titleCanvas.width, titleCanvas.height);
-            ctx.font = "bold 40px 'Amiri', serif";
-            ctx.fillStyle = "#0A1711";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.direction = "rtl";
-            ctx.fillText(title, titleCanvas.width / 2, 25);
+        const titleImg = drawArabicText(title, {
+          fontSize: 42,
+          fontFamily: "Amiri",
+          fontWeight: "bold",
+          color: "#0A1711",
+          maxWidth: paperWidth - 40,
+        });
 
-            const titleDataUrl = titleCanvas.toDataURL("image/png");
-            pdf.addImage(
-              titleDataUrl,
-              "PNG",
-              paperWidth / 2 - 70,
-              currentY - 6,
-              140,
-              12
-            );
-          }
-        } catch (e) {
-          pdf.setFontSize(18);
-          pdf.setTextColor(10, 23, 17);
-          pdf.text(title, paperWidth / 2, currentY, { align: "center" });
+        if (titleImg) {
+          pdf.addImage(
+            titleImg,
+            "PNG",
+            20,
+            currentY - 8,
+            paperWidth - 40,
+            14
+          );
         }
-        currentY += 11;
+        currentY += 14;
       }
 
-      // ===== العنوان الفرعي =====
+      // =====================================================
+      // ✅ العنوان الفرعي
+      // =====================================================
       if (subtitle) {
-        try {
-          const subCanvas = document.createElement("canvas");
-          subCanvas.width = paperWidth * 8;
-          subCanvas.height = 35;
-          const ctx = subCanvas.getContext("2d");
-          if (ctx) {
-            ctx.fillStyle = "#FDFBF3";
-            ctx.fillRect(0, 0, subCanvas.width, subCanvas.height);
-            ctx.font = "24px 'Amiri', serif";
-            ctx.fillStyle = "#8B5A2B";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.direction = "rtl";
-            ctx.fillText(subtitle, subCanvas.width / 2, 17);
+        const subImg = drawArabicText(subtitle, {
+          fontSize: 24,
+          fontFamily: "Amiri",
+          color: "#8B5A2B",
+          maxWidth: paperWidth - 60,
+        });
 
-            const subDataUrl = subCanvas.toDataURL("image/png");
-            pdf.addImage(
-              subDataUrl,
-              "PNG",
-              paperWidth / 2 - 60,
-              currentY - 5,
-              120,
-              8
-            );
-          }
-        } catch (e) {
-          pdf.setFontSize(12);
-          pdf.setTextColor(139, 90, 43);
-          pdf.text(subtitle, paperWidth / 2, currentY, { align: "center" });
+        if (subImg) {
+          pdf.addImage(
+            subImg,
+            "PNG",
+            30,
+            currentY - 5,
+            paperWidth - 60,
+            8
+          );
         }
         currentY += 8;
       }
 
-      // ===== خط فاصل =====
+      // =====================================================
+      // ✅ الوصف التفصيلي (عند وجوده)
+      // =====================================================
+      if (description) {
+        const descImg = drawArabicText(description, {
+          fontSize: 16,
+          fontFamily: "Amiri",
+          color: "#505050",
+          maxWidth: paperWidth - 60,
+        });
+
+        if (descImg) {
+          pdf.addImage(
+            descImg,
+            "PNG",
+            30,
+            currentY - 4,
+            paperWidth - 60,
+            6
+          );
+        }
+        currentY += 7;
+      }
+
+      // خط فاصل ذهبي
       pdf.setDrawColor(201, 162, 39);
       pdf.setLineWidth(0.5);
       pdf.line(paperWidth / 2 - 40, currentY, paperWidth / 2 + 40, currentY);
       currentY += 5;
 
-      // ===== الشجرة =====
+      // =====================================================
+      // ✅ الشجرة
+      // =====================================================
       const validFooterLines = footerLines.filter((l) => l.trim());
       const footerHeight =
         validFooterLines.length > 0 ? 12 + validFooterLines.length * 6 : 8;
@@ -313,7 +403,6 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       const imgX = (paperWidth - imgWidth) / 2;
       const imgY = treeTopY + (treeAvailableHeight - imgHeight) / 2;
 
-      // ✅ استخدام FAST مع HIGH للتوازن
       pdf.addImage(
         dataUrl,
         "PNG",
@@ -325,7 +414,9 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         "FAST"
       );
 
-      // ===== التفاصيل السفلية =====
+      // =====================================================
+      // ✅ التفاصيل السفلية
+      // =====================================================
       if (validFooterLines.length > 0) {
         const footerY = paperHeight - footerHeight;
 
@@ -333,43 +424,26 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         pdf.setLineWidth(0.5);
         pdf.line(15, footerY - 3, paperWidth - 15, footerY - 3);
 
-        try {
-          const footerCanvas = document.createElement("canvas");
-          footerCanvas.width = paperWidth * 8;
-          footerCanvas.height = validFooterLines.length * 35;
-          const ctx = footerCanvas.getContext("2d");
-          if (ctx) {
-            ctx.fillStyle = "#FDFBF3";
-            ctx.fillRect(0, 0, footerCanvas.width, footerCanvas.height);
-            ctx.font = "18px 'Amiri', serif";
-            ctx.fillStyle = "#505050";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.direction = "rtl";
+        // كتابة كل سطر
+        validFooterLines.forEach((line, index) => {
+          const lineImg = drawArabicText(line, {
+            fontSize: 16,
+            fontFamily: "Amiri",
+            color: "#505050",
+            maxWidth: paperWidth - 40,
+          });
 
-            validFooterLines.forEach((line, index) => {
-              ctx.fillText(line, footerCanvas.width / 2, index * 35 + 17);
-            });
-
-            const footerDataUrl = footerCanvas.toDataURL("image/png");
+          if (lineImg) {
             pdf.addImage(
-              footerDataUrl,
+              lineImg,
               "PNG",
-              15,
-              footerY,
-              paperWidth - 30,
-              validFooterLines.length * 5
+              20,
+              footerY + index * 5,
+              paperWidth - 40,
+              5
             );
           }
-        } catch (e) {
-          pdf.setFontSize(9);
-          pdf.setTextColor(80, 80, 80);
-          validFooterLines.forEach((line, index) => {
-            pdf.text(line, paperWidth / 2, footerY + index * 5, {
-              align: "center",
-            });
-          });
-        }
+        });
       }
 
       setProgress("جاري الحفظ...");
@@ -439,7 +513,6 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
 
   return (
     <>
-      {/* زر التصدير */}
       <button
         onClick={() => setIsOpen(true)}
         className="bg-gold-500 text-dark-bg px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gold-600 transition shadow-lg"
@@ -449,7 +522,6 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         تصدير
       </button>
 
-      {/* القائمة المنبثقة */}
       {isOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden my-8">
@@ -458,25 +530,27 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <Download className="w-5 h-5 text-gold-500" />
                 تصدير الشجرة
+                {!isFontLoaded && (
+                  <span className="text-xs bg-yellow-500 text-dark-bg px-2 py-0.5 rounded-full font-bold">
+                    جاري تحضير الخطوط...
+                  </span>
+                )}
               </h2>
               <button
                 onClick={() => setIsOpen(false)}
                 disabled={isExporting}
                 className="p-2 hover:bg-white/20 rounded-lg transition group disabled:opacity-50"
-                title="إغلاق"
               >
                 <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
               </button>
             </div>
 
-            {/* المحتوى */}
             <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               {isExporting ? (
                 <div className="text-center py-8">
                   <Loader2 className="w-12 h-12 text-gold-500 animate-spin mx-auto mb-4" />
                   <p className="text-dark-bg font-bold mb-4">{progress}</p>
 
-                  {/* شريط التقدم */}
                   <div className="w-full bg-gray-200 rounded-full h-3 mb-2 overflow-hidden">
                     <div
                       className="bg-gradient-to-r from-gold-500 to-gold-600 h-3 rounded-full transition-all duration-500"
@@ -484,14 +558,9 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
                     />
                   </div>
                   <p className="text-sm text-gray-500">{progressPercent}%</p>
-
-                  <p className="text-xs text-gray-400 mt-4">
-                    ⏱️ قد يستغرق التصدير حتى دقيقة واحدة حسب حجم الشجرة
-                  </p>
                 </div>
               ) : (
                 <>
-                  {/* إعدادات العنوان */}
                   <button
                     onClick={() => setShowSettings(!showSettings)}
                     className="w-full bg-heritage-bg border border-gold-500/30 rounded-lg p-3 flex items-center justify-between hover:bg-gold-500/5 transition"
@@ -499,7 +568,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
                     <div className="flex items-center gap-2">
                       <Settings className="w-4 h-4 text-gold-500" />
                       <span className="font-bold text-dark-bg">
-                        إعدادات العنوان والتفاصيل
+                        إعدادات العنوان والوصف
                       </span>
                     </div>
                     <span className="text-xs text-gold-500">
@@ -518,20 +587,32 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
                           value={title}
                           onChange={(e) => setTitle(e.target.value)}
                           className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                          placeholder="شجرة النسب العائلية الكريمة"
                         />
                       </div>
 
                       <div>
                         <label className="block text-sm font-bold mb-2 text-dark-bg">
-                          العنوان الفرعي (اختياري)
+                          العنوان الفرعي
                         </label>
                         <input
                           type="text"
                           value={subtitle}
                           onChange={(e) => setSubtitle(e.target.value)}
                           className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500"
-                          placeholder="مثال: قبيلة آل ..."
+                          placeholder="اختياري"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold mb-2 text-dark-bg">
+                          الوصف التفصيلي
+                        </label>
+                        <textarea
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          rows={3}
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-gold-500 text-sm"
+                          placeholder="وصف مختصر للشجرة يظهر تحت العنوان"
                         />
                       </div>
 
@@ -573,10 +654,17 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
                           )}
                         </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={saveSettings}
+                        className="w-full bg-deep-green text-white py-2 rounded-lg font-bold hover:bg-dark-bg transition"
+                      >
+                        💾 حفظ الإعدادات
+                      </button>
                     </div>
                   )}
 
-                  {/* PDF */}
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <FileText className="w-5 h-5 text-red-600" />
@@ -590,7 +678,8 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
                           <button
                             key={size}
                             onClick={() => exportPDF(size)}
-                            className="bg-red-50 text-red-700 border border-red-200 px-4 py-3 rounded-lg font-bold hover:bg-red-100 transition flex items-center justify-between"
+                            disabled={!isFontLoaded}
+                            className="bg-red-50 text-red-700 border border-red-200 px-4 py-3 rounded-lg font-bold hover:bg-red-100 transition flex items-center justify-between disabled:opacity-50"
                           >
                             <span>{size}</span>
                             <span className="text-xs text-red-500">
@@ -606,7 +695,6 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
                     </div>
                   </div>
 
-                  {/* PNG */}
                   <div className="pt-4 border-t border-gray-200">
                     <div className="flex items-center gap-2 mb-3">
                       <ImageIcon className="w-5 h-5 text-blue-600" />
@@ -614,7 +702,8 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
                     </div>
                     <button
                       onClick={exportPNG}
-                      className="w-full bg-blue-50 text-blue-700 border border-blue-200 px-4 py-3 rounded-lg font-bold hover:bg-blue-100 transition"
+                      disabled={!isFontLoaded}
+                      className="w-full bg-blue-50 text-blue-700 border border-blue-200 px-4 py-3 rounded-lg font-bold hover:bg-blue-100 transition disabled:opacity-50"
                     >
                       تحميل PNG (دقة عالية جداً)
                     </button>
