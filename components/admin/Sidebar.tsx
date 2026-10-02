@@ -14,6 +14,7 @@ import {
   UserCircle,
   Shield,
   Download,
+  Home,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -25,16 +26,20 @@ const menuItems = [
   { href: "/admin/pages", label: "الصفحات", icon: FileText },
   { href: "/admin/users", label: "المستخدمون", icon: Shield, adminOnly: true },
   { href: "/admin/export-settings", label: "إعدادات التصدير", icon: Download },
+  { href: "/admin/settings", label: "إعدادات الموقع", icon: Settings },
   { href: "/admin/logs", label: "سجل العمليات", icon: History },
-  { href: "/admin/settings", label: "الإعدادات", icon: Settings },
   { href: "/admin/account", label: "حسابي", icon: UserCircle },
 ];
 
 interface AdminSidebarProps {
   userRole?: string;
+  siteName?: string;
 }
 
-export function AdminSidebar({ userRole = "VIEWER" }: AdminSidebarProps) {
+export function AdminSidebar({
+  userRole = "VIEWER",
+  siteName = "شجرة النسب العائلية",
+}: AdminSidebarProps) {
   const pathname = usePathname();
   const isAdmin = ["SUPER_ADMIN", "ADMIN"].includes(userRole);
 
@@ -51,7 +56,7 @@ export function AdminSidebar({ userRole = "VIEWER" }: AdminSidebarProps) {
             <h1 className="text-lg font-heritage text-gold-500 font-bold">
               لوحة التحكم
             </h1>
-            <p className="text-xs text-gray-400">شجرة النسب العائلية</p>
+            <p className="text-xs text-gray-400 truncate">{siteName}</p>
           </div>
         </Link>
       </div>
