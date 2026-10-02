@@ -1,13 +1,23 @@
 import Link from "next/link";
 import { TreePine, Users, BookOpen, ScrollText, Feather, Landmark } from "lucide-react";
 import { StatisticsSection } from "@/components/public/StatisticsSection";
+import { db } from "@/lib/db";
 
 export default async function HomePage() {
+  const settings = await db.siteSettings.findUnique({
+    where: { id: "default" },
+  });
+
+  const heroTitle = settings?.heroTitle || "شجرة النسب";
+  const heroSubtitle = settings?.heroSubtitle || "العائلية الكريمة";
+  const heroDescription =
+    settings?.heroDescription ||
+    "وثّق تاريخ عائلتك، احفظ أنسابك، واربط الأجيال ببعضها البعض عبر منصة حديثة بتصميم تراثي أصيل.";
+
   return (
     <div className="min-h-screen bg-heritage-bg">
-      {/* ===== قسم البطل (Hero) ===== */}
+      {/* قسم البطل */}
       <section className="bg-gradient-to-b from-dark-bg via-deep-green to-dark-bg text-white py-16 md:py-24 relative overflow-hidden">
-        {/* زخارف إسلامية */}
         <div className="absolute inset-0 opacity-10 pointer-events-none">
           <svg width="100%" height="100%">
             <defs>
@@ -27,13 +37,13 @@ export default async function HomePage() {
           </div>
 
           <h1 className="text-4xl md:text-6xl font-heritage font-bold mb-4">
-            شجرة النسب
+            {heroTitle}
           </h1>
           <h2 className="text-2xl md:text-4xl text-gold-500 font-heritage mb-8">
-            العائلية الكريمة
+            {heroSubtitle}
           </h2>
           <p className="text-base md:text-lg text-gray-300 mb-10 max-w-2xl mx-auto leading-relaxed">
-            وثّق تاريخ عائلتك، احفظ أنسابك، واربط الأجيال ببعضها البعض عبر منصة حديثة بتصميم تراثي أصيل.
+            {heroDescription}
           </p>
 
           <div className="flex flex-wrap justify-center gap-4">
@@ -55,25 +65,20 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ===== قسم المزايا (Features) ===== */}
+      {/* قسم المزايا */}
       <section className="py-16 md:py-20 bg-heritage-bg">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <div className="inline-block">
-              <Landmark className="w-12 h-12 text-gold-500 mx-auto mb-4" />
-            </div>
+            <Landmark className="w-12 h-12 text-gold-500 mx-auto mb-4" />
             <h2 className="text-3xl md:text-4xl font-heritage font-bold text-dark-bg mb-4">
               لماذا منصتنا؟
             </h2>
             <div className="w-24 h-1 bg-gold-500 mx-auto rounded-full"></div>
-            <p className="text-gray-600 mt-6 max-w-2xl mx-auto">
-              نجمع بين أصالة التراث العربي وأحدث التقنيات الرقمية لتقديم تجربة فريدة.
-            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gold-500/20 text-center hover:shadow-xl transition-all">
-              <div className="w-16 h-16 mx-auto bg-dark-bg rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gold-500/20 text-center">
+              <div className="w-16 h-16 mx-auto bg-dark-bg rounded-2xl flex items-center justify-center mb-4">
                 <Landmark className="w-8 h-8 text-gold-500" />
               </div>
               <h3 className="text-xl font-bold text-dark-bg mb-3">توثيق موثوق</h3>
@@ -82,8 +87,8 @@ export default async function HomePage() {
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gold-500/20 text-center hover:shadow-xl transition-all">
-              <div className="w-16 h-16 mx-auto bg-dark-bg rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gold-500/20 text-center">
+              <div className="w-16 h-16 mx-auto bg-dark-bg rounded-2xl flex items-center justify-center mb-4">
                 <TreePine className="w-8 h-8 text-gold-500" />
               </div>
               <h3 className="text-xl font-bold text-dark-bg mb-3">شجرة تفاعلية</h3>
@@ -92,8 +97,8 @@ export default async function HomePage() {
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gold-500/20 text-center hover:shadow-xl transition-all">
-              <div className="w-16 h-16 mx-auto bg-dark-bg rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gold-500/20 text-center">
+              <div className="w-16 h-16 mx-auto bg-dark-bg rounded-2xl flex items-center justify-center mb-4">
                 <Users className="w-8 h-8 text-gold-500" />
               </div>
               <h3 className="text-xl font-bold text-dark-bg mb-3">إدارة متقدمة</h3>
@@ -105,20 +110,11 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ✅ قسم الإحصائيات الجديد */}
+      {/* الإحصائيات */}
       <StatisticsSection />
 
-      {/* ===== قسم دعوة للإجراء (CTA) ===== */}
+      {/* دعوة للإجراء */}
       <section className="bg-dark-bg text-white py-16 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5">
-          <svg width="100%" height="100%">
-            <pattern id="cta-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M20 0 L20 40 M0 20 L40 20" stroke="white" strokeWidth="1" />
-            </pattern>
-            <rect width="100%" height="100%" fill="url(#cta-pattern)" />
-          </svg>
-        </div>
-
         <div className="container mx-auto px-4 text-center relative z-10">
           <ScrollText className="w-12 h-12 text-gold-500 mx-auto mb-6" />
           <h2 className="text-3xl md:text-4xl font-heritage font-bold mb-6">
