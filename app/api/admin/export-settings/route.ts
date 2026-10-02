@@ -11,15 +11,29 @@ export async function GET() {
       create: { id: "default" },
     });
 
+    // جلب الأسطر السفلية من قاعدة البيانات (سنستخدم حقل introductionText مؤقتاً)
+    let footerLines: string[] = [];
+    if (settings.introductionText) {
+      try {
+        const parsed = JSON.parse(settings.introductionText);
+        if (Array.isArray(parsed)) footerLines = parsed;
+      } catch {
+        // إذا لم يكن JSON، نستخدم نصاً واحداً
+        footerLines = [settings.introductionText];
+      }
+    }
+
     return NextResponse.json({
       treeTitle: settings.heroTitle || "شجرة النسب العائلية الكريمة",
       treeSubtitle: settings.heroSubtitle || "",
       treeDescription: settings.siteDescription || "",
-      footerLines: [
-        `تم إعداد هذه الشجرة بواسطة ${settings.developerName || "Mohamed Abdalwhab"}`,
-      ],
+      footerLines:
+        footerLines.length > 0
+          ? footerLines
+          : [`تم إعداد هذه الشجرة بواسطة ${settings.developerName || "Mohamed Abdalwhab"}`],
     });
   } catch (error) {
+    console.error("GET Export Settings Error:", error);
     return NextResponse.json({ error: "خطأ في السيرفر" }, { status: 500 });
   }
 }
@@ -40,17 +54,21 @@ export async function PUT(request: NextRequest) {
         heroTitle: data.treeTitle,
         heroSubtitle: data.treeSubtitle,
         siteDescription: data.treeDescription,
+        // نخزّن الأسطر السفلية كـ JSON في حقل introductionText
+        introductionText: JSON.stringify(data.footerLines || []),
       },
       create: {
         id: "default",
         heroTitle: data.treeTitle,
         heroSubtitle: data.treeSubtitle,
         siteDescription: data.treeDescription,
+        introductionText: JSON.stringify(data.footerLines || []),
       },
     });
 
     return NextResponse.json({ success: true, settings });
   } catch (error) {
+    console.error("PUT Export Settings Error:", error);
     return NextResponse.json({ error: "خطأ في السيرفر" }, { status: 500 });
   }
 }
