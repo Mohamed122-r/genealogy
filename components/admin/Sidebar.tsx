@@ -13,6 +13,7 @@ import {
   FileText,
   UserCircle,
   Shield,
+  Download,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ const menuItems = [
   { href: "/admin/people", label: "الأشخاص", icon: Users },
   { href: "/admin/pages", label: "الصفحات", icon: FileText },
   { href: "/admin/users", label: "المستخدمون", icon: Shield, adminOnly: true },
+  { href: "/admin/export-settings", label: "إعدادات التصدير", icon: Download },
   { href: "/admin/logs", label: "سجل العمليات", icon: History },
   { href: "/admin/settings", label: "الإعدادات", icon: Settings },
   { href: "/admin/account", label: "حسابي", icon: UserCircle },
@@ -36,10 +38,7 @@ export function AdminSidebar({ userRole = "VIEWER" }: AdminSidebarProps) {
   const pathname = usePathname();
   const isAdmin = ["SUPER_ADMIN", "ADMIN"].includes(userRole);
 
-  // فلترة العناصر حسب الصلاحية
-  const visibleItems = menuItems.filter(
-    (item) => !item.adminOnly || isAdmin
-  );
+  const visibleItems = menuItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <aside className="w-64 bg-dark-bg text-white flex flex-col h-screen sticky top-0 border-l border-gold-500/20">
