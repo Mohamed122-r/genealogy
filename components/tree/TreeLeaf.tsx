@@ -13,22 +13,22 @@ interface TreeLeafProps {
 function getLeafColors(status: string) {
   switch (status) {
     case "ALIVE":
-      return { fill: "#4A8B3F", fillLight: "#7BC96F", fillDark: "#2D5A24", stroke: "#1F4218", vein: "#1A3814" };
+      return { fill: "#4A8B3F", fillLight: "#7BC96F", fillDark: "#2D5A24", stroke: "#1F4218" };
     case "DECEASED":
-      return { fill: "#E5B80B", fillLight: "#F5D547", fillDark: "#A8841D", stroke: "#8B6B0F", vein: "#6B4F0A" };
+      return { fill: "#E5B80B", fillLight: "#F5D547", fillDark: "#A8841D", stroke: "#8B6B0F" };
     case "DISCONNECTED":
-      return { fill: "#8B7355", fillLight: "#A89078", fillDark: "#5D4A2E", stroke: "#4A3A22", vein: "#3A2E1A" };
+      return { fill: "#8B7355", fillLight: "#A89078", fillDark: "#5D4A2E", stroke: "#4A3A22" };
     default:
-      return { fill: "#A8A8A8", fillLight: "#C0C0C0", fillDark: "#808080", stroke: "#707070", vein: "#505050" };
+      return { fill: "#A8A8A8", fillLight: "#C0C0C0", fillDark: "#808080", stroke: "#707070" };
   }
 }
 
 function getStatusLabel(status: string) {
   switch (status) {
-    case "ALIVE": return "حي";
-    case "DECEASED": return "متوفى";
-    case "DISCONNECTED": return "منقطع";
-    default: return "؟";
+    case "ALIVE": return "(حي)";
+    case "DECEASED": return "(متوفى)";
+    case "DISCONNECTED": return "(منقطع)";
+    default: return "(غير معروف)";
   }
 }
 
@@ -48,11 +48,9 @@ export function TreeLeaf({
 }: TreeLeafProps) {
   const colors = getLeafColors(node.status);
 
-  // ✅ أبعاد الورقة الجديدة (بيضاوية مدببة)
   const LEAF_WIDTH = 70;
   const LEAF_HEIGHT = 75;
 
-  // ستايل الورقة بناءً على الحالة
   let filter = "drop-shadow(0 4px 8px rgba(0,0,0,0.35))";
   let opacity = 1;
   let strokeColor = colors.stroke;
@@ -71,7 +69,6 @@ export function TreeLeaf({
     filter = "drop-shadow(0 2px 4px rgba(0,0,0,0.15))";
   }
 
-  // ✅ شكل الورقة الجديد: بيضاوي مدبب مثل الورقة الحقيقية
   const leafPath = `
     M ${LEAF_WIDTH / 2} 0
     C ${LEAF_WIDTH * 0.78} ${LEAF_HEIGHT * 0.12},
@@ -90,7 +87,6 @@ export function TreeLeaf({
 
   return (
     <g>
-      {/* ساق الورقة (تصل الفرع بالورقة) */}
       <line
         x1={node.x}
         y1={node.y + LEAF_HEIGHT / 2 + 3}
@@ -110,7 +106,7 @@ export function TreeLeaf({
         onMouseLeave={onMouseLeave}
         style={{ filter, opacity, transition: "all 0.3s ease" }}
       >
-        {/* ===== جسم الورقة ===== */}
+        {/* جسم الورقة */}
         <path
           d={leafPath}
           fill={colors.fill}
@@ -118,7 +114,7 @@ export function TreeLeaf({
           strokeWidth={strokeWidth}
         />
 
-        {/* ===== اللمعة العلوية (تغطي النصف العلوي) ===== */}
+        {/* لمعة علوية (بدون عروق جانبية) */}
         <path
           d={`M ${LEAF_WIDTH / 2} 6
              C ${LEAF_WIDTH * 0.72} ${LEAF_HEIGHT * 0.18},
@@ -134,10 +130,10 @@ export function TreeLeaf({
                ${LEAF_WIDTH * 0.28} ${LEAF_HEIGHT * 0.18},
                ${LEAF_WIDTH / 2} 6 Z`}
           fill={colors.fillLight}
-          opacity="0.55"
+          opacity="0.5"
         />
 
-        {/* ===== الظل السفلي ===== */}
+        {/* ظل سفلي */}
         <path
           d={`M ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 8}
              C ${LEAF_WIDTH * 0.7} ${LEAF_HEIGHT * 0.82},
@@ -153,57 +149,16 @@ export function TreeLeaf({
                ${LEAF_WIDTH * 0.3} ${LEAF_HEIGHT * 0.82},
                ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 8} Z`}
           fill={colors.fillDark}
-          opacity="0.45"
+          opacity="0.4"
         />
 
-        {/* ===== العرق المركزي (الخط الأوسط) ===== */}
-        <path
-          d={`M ${LEAF_WIDTH / 2} 4 L ${LEAF_WIDTH / 2} ${LEAF_HEIGHT - 4}`}
-          stroke={colors.vein}
-          strokeWidth="1.3"
-          opacity="0.75"
-          strokeLinecap="round"
-        />
-
-        {/* ===== العروق الجانبية (5 عروق) ===== */}
-        {[0.15, 0.3, 0.45, 0.6, 0.75].map((ratio, i) => {
-          const y = LEAF_HEIGHT * ratio;
-          const curveOffset = (1 - Math.abs(ratio - 0.5) * 2) * 0.15;
-          return (
-            <g key={i}>
-              {/* عرق يمين */}
-              <path
-                d={`M ${LEAF_WIDTH / 2} ${y}
-                   Q ${LEAF_WIDTH * (0.6 + curveOffset)} ${y - 3},
-                     ${LEAF_WIDTH * (0.85 - Math.abs(ratio - 0.5) * 0.3)} ${y - 5}`}
-                stroke={colors.vein}
-                strokeWidth="0.8"
-                fill="none"
-                opacity="0.55"
-                strokeLinecap="round"
-              />
-              {/* عرق يسار */}
-              <path
-                d={`M ${LEAF_WIDTH / 2} ${y}
-                   Q ${LEAF_WIDTH * (0.4 - curveOffset)} ${y - 3},
-                     ${LEAF_WIDTH * (0.15 + Math.abs(ratio - 0.5) * 0.3)} ${y - 5}`}
-                stroke={colors.vein}
-                strokeWidth="0.8"
-                fill="none"
-                opacity="0.55"
-                strokeLinecap="round"
-              />
-            </g>
-          );
-        })}
-
-        {/* ===== اسم الشخص ===== */}
+        {/* الاسم (بدون عروق) */}
         <text
           x={LEAF_WIDTH / 2}
-          y={LEAF_HEIGHT / 2 - 2}
+          y={LEAF_HEIGHT / 2 - 4}
           textAnchor="middle"
           fill="#FFFFFF"
-          fontSize="9.5"
+          fontSize="10"
           fontWeight="bold"
           style={{
             fontFamily: "Amiri, serif",
@@ -214,13 +169,13 @@ export function TreeLeaf({
           {truncateName(node.fullName, 12)}
         </text>
 
-        {/* ===== حالة الشخص ===== */}
+        {/* الحالة بين قوسين */}
         <text
           x={LEAF_WIDTH / 2}
           y={LEAF_HEIGHT / 2 + 14}
           textAnchor="middle"
           fill="#FFFFFF"
-          fontSize="7.5"
+          fontSize="8"
           opacity="0.95"
           style={{
             fontFamily: "Cairo, sans-serif",
