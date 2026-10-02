@@ -2,23 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 
-// GET: جلب إعدادات التصدير
 export async function GET() {
   try {
-    const settings = await db.siteSettings.upsert({
+    const settings = await db.siteSettings.findUnique({
       where: { id: "default" },
-      update: {},
-      create: { id: "default" },
     });
 
-    // جلب الأسطر السفلية من قاعدة البيانات (سنستخدم حقل introductionText مؤقتاً)
+    if (!settings) {
+      return NextResponse.json({
+        treeTitle: "شجرة النسب العائلية الكريمة",
+        treeSubtitle: "",
+        treeDescription: "",
+        footerLines: ["تم إعداد هذه الشجرة بواسطة Mohamed Abdalwhab"],
+      });
+    }
+
     let footerLines: string[] = [];
     if (settings.introductionText) {
       try {
         const parsed = JSON.parse(settings.introductionText);
-        if (Array.isArray(parsed)) footerLines = parsed;
+        if (Array.isArray(parsed)) {
+          footerLines = parsed.filter((l) => typeof l === "string" && l.trim());
+        }
       } catch {
-        // إذا لم يكن JSON، نستخدم نصاً واحداً
         footerLines = [settings.introductionText];
       }
     }
@@ -30,15 +36,19 @@ export async function GET() {
       footerLines:
         footerLines.length > 0
           ? footerLines
-          : [`تم إعداد هذه الشجرة بواسطة ${settings.developerName || "Mohamed Abdalwhab"}`],
+          : ["تم إعداد هذه الشجرة بواسطة Mohamed Abdalwhab"],
     });
   } catch (error) {
     console.error("GET Export Settings Error:", error);
-    return NextResponse.json({ error: "خطأ في السيرفر" }, { status: 500 });
+    return NextResponse.json({
+      treeTitle: "شجرة النسب العائلية الكريمة",
+      treeSubtitle: "",
+      treeDescription: "",
+      footerLines: ["تم إعداد هذه الشجرة بواسطة Mohamed Abdalwhab"],
+    });
   }
 }
 
-// PUT: تحديث إعدادات التصدير
 export async function PUT(request: NextRequest) {
   try {
     const session = await auth();
@@ -51,17 +61,16 @@ export async function PUT(request: NextRequest) {
     const settings = await db.siteSettings.upsert({
       where: { id: "default" },
       update: {
-        heroTitle: data.treeTitle,
-        heroSubtitle: data.treeSubtitle,
-        siteDescription: data.treeDescription,
-        // نخزّن الأسطر السفلية كـ JSON في حقل introductionText
+        heroTitle: data.treeTitle || "",
+        heroSubtitle: data.treeSubtitle || "",
+        siteDescription: data.treeDescription || "",
         introductionText: JSON.stringify(data.footerLines || []),
       },
       create: {
         id: "default",
-        heroTitle: data.treeTitle,
-        heroSubtitle: data.treeSubtitle,
-        siteDescription: data.treeDescription,
+        heroTitle: data.treeTitle || "",
+        heroSubtitle: data.treeSubtitle || "",
+        siteDescription: data.treeDescription || "",
         introductionText: JSON.stringify(data.footerLines || []),
       },
     });
@@ -69,6 +78,12 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: true, settings });
   } catch (error) {
     console.error("PUT Export Settings Error:", error);
-    return NextResponse.json({ error: "خطأ في السيرفر" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "حدث خطأ أثناء الحفظ",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
   }
 }
