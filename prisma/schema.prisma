@@ -123,3 +123,20 @@ model Page {
   @@index([order])
   @@index([isPublished])
 }
+// =====================================================
+// إعدادات الموقع (Site Settings)
+// =====================================================
+model SiteSettings {
+  id               String   @id @default("default")
+  siteName         String   @default("شجرة النسب العائلية")
+  siteDescription  String   @default("")
+  developerName    String   @default("Mohamed Abdalwhab")
+  heroTitle        String   @default("شجرة النسب")
+  heroSubtitle     String   @default("العائلية الكريمة")
+  heroDescription  String   @default("")
+  introductionText String?  @db.Text
+  contactEmail     String   @default("")
+  contactPhone     String   @default("")
+  contactAddress   String   @default("")
+  updatedAt        DateTime @updatedAt
+}
