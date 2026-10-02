@@ -51,33 +51,72 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    // 1. التحقق من الجلسة
     const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-
-    const data = await request.json();
-
-    const settings = await db.siteSettings.upsert({
-      where: { id: "default" },
-      update: {
-        heroTitle: data.treeTitle || "",
-        heroSubtitle: data.treeSubtitle || "",
-        siteDescription: data.treeDescription || "",
-        introductionText: JSON.stringify(data.footerLines || []),
-      },
-      create: {
-        id: "default",
-        heroTitle: data.treeTitle || "",
-        heroSubtitle: data.treeSubtitle || "",
-        siteDescription: data.treeDescription || "",
-        introductionText: JSON.stringify(data.footerLines || []),
-      },
+    console.log("[Export Settings] Session:", {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      userId: session?.user?.id,
+      userRole: session?.user?.role,
     });
 
-    return NextResponse.json({ success: true, settings });
+    if (!session?.user) {
+      return NextResponse.json({ error: "غير مصرح - لم يتم تسجيل الدخول" }, { status: 401 });
+    }
+
+    // 2. قراءة البيانات
+    const data = await request.json();
+    console.log("[Export Settings] Received data:", data);
+
+    // 3. التحقق من البيانات
+    if (!data.treeTitle || typeof data.treeTitle !== "string") {
+      return NextResponse.json({ error: "العنوان الرئيسي مطلوب" }, { status: 400 });
+    }
+
+    // 4. تجهيز البيانات
+    const updateData = {
+      heroTitle: String(data.treeTitle).trim(),
+      heroSubtitle: String(data.treeSubtitle || "").trim(),
+      siteDescription: String(data.treeDescription || "").trim(),
+      introductionText: JSON.stringify(
+        Array.isArray(data.footerLines)
+          ? data.footerLines.filter((l: any) => typeof l === "string" && l.trim())
+          : []
+      ),
+    };
+
+    console.log("[Export Settings] Update data:", updateData);
+
+    // 5. الحفظ
+    const existingSettings = await db.siteSettings.findUnique({
+      where: { id: "default" },
+    });
+
+    let settings;
+
+    if (existingSettings) {
+      settings = await db.siteSettings.update({
+        where: { id: "default" },
+        data: updateData,
+      });
+    } else {
+      settings = await db.siteSettings.create({
+        data: {
+          id: "default",
+          ...updateData,
+        },
+      });
+    }
+
+    console.log("[Export Settings] Saved successfully");
+
+    return NextResponse.json({ 
+      success: true, 
+      settings,
+      message: "تم الحفظ بنجاح" 
+    });
   } catch (error) {
-    console.error("PUT Export Settings Error:", error);
+    console.error("[Export Settings] PUT Error:", error);
     return NextResponse.json(
       {
         error: "حدث خطأ أثناء الحفظ",
