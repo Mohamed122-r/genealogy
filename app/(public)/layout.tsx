@@ -1,12 +1,19 @@
 import Link from "next/link";
 import { TreePine } from "lucide-react";
 import { db } from "@/lib/db";
+import { unstable_noStore as noStore } from "next/cache";
+
+// ⬇️ إجبار الصفحة على القراءة الديناميكية من قاعدة البيانات
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  noStore();
+
   // جلب الصفحات النشطة
   const pages = await db.page.findMany({
     where: {
