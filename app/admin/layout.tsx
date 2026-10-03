@@ -2,12 +2,19 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { AdminSidebar } from "@/components/admin/Sidebar";
 import { db } from "@/lib/db";
+import { unstable_noStore as noStore } from "next/cache";
+
+// ⬇️ إجبار الصفحة على القراءة الديناميكية من قاعدة البيانات
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  noStore();
+
   const session = await auth();
   if (!session?.user) redirect("/login");
 
