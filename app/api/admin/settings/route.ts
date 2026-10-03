@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 
@@ -56,6 +57,13 @@ export async function PUT(request: NextRequest) {
     });
 
     console.log("[Settings] Saved successfully");
+
+    // ⬇️⬇️⬇️ إبطال الكاش حتى تظهر التعديلات فوراً في كل الصفحات
+    revalidatePath("/", "layout");
+    revalidatePath("/admin", "layout");
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin/dashboard");
+    // ⬆️⬆️⬆️
 
     return NextResponse.json({ success: true, settings });
   } catch (error) {
