@@ -23,6 +23,8 @@ interface ExportSettings {
   footerLines: string[];
 }
 
+const MM_TO_PX = 3.7795;
+
 export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: ExportMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -38,10 +40,11 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   });
 
   // =====================================================
-  // تحميل الخطوط
+  // تحميل الخطوط بشكل موثوق
   // =====================================================
   useEffect(() => {
     let isMounted = true;
+
     async function loadFonts() {
       try {
         const link = document.createElement("link");
@@ -51,17 +54,33 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         document.head.appendChild(link);
 
         if (document.fonts) {
-          await document.fonts.load("bold 42px Amiri");
-          await document.fonts.load("24px Amiri");
-          await document.fonts.load("16px Amiri");
-          await document.fonts.ready;
+          try {
+            await Promise.all([
+              document.fonts.load("bold 48px Amiri"),
+              document.fonts.load("400 24px Amiri"),
+              document.fonts.load("400 16px Amiri"),
+            ]);
+          } catch {
+            /* تجاهل */
+          }
+
+          // انتظر حتى يتوفر الخط فعلياً
+          let tries = 0;
+          while (
+            tries < 25 &&
+            !document.fonts.check("bold 48px Amiri")
+          ) {
+            await new Promise((r) => setTimeout(r, 150));
+            tries++;
+          }
         }
-        await new Promise((resolve) => setTimeout(resolve, 500));
+
         if (isMounted) setIsFontLoaded(true);
-      } catch (e) {
+      } catch {
         if (isMounted) setIsFontLoaded(true);
       }
     }
+
     loadFonts();
     return () => {
       isMounted = false;
@@ -79,7 +98,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
           treeTitle: data.treeTitle || "شجرة النسب العائلية الكريمة",
           treeSubtitle: data.treeSubtitle || "",
           treeDescription: data.treeDescription || "",
-          footerLines: data.footerLines || [],
+          footerLines: Array.isArray(data.footerLines) ? data.footerLines : [],
         });
       })
       .catch(() => {});
@@ -109,7 +128,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   }
 
   // =====================================================
-  // كتابة نص عربي
+  // كتابة نص عربي على canvas (بدقة عالية + maxWidth)
   // =====================================================
   function drawArabicText(
     text: string,
@@ -121,124 +140,185 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
     }
   ): { dataUrl: string; widthMm: number; heightMm: number } | null {
     const { fontSizeMm, fontWeight = "normal", color, maxWidthMm } = options;
-    const MM_TO_PX = 3.7795;
-    const dpr = 16;
-    const fontSizePx = fontSizeMm * MM_TO_PX * dpr;
-    const widthPx = maxWidthMm * MM_TO_PX * dpr;
-    const heightPx = Math.ceil(fontSizePx * 1.4);
+    const DPR = 4;
+
+    const fontSizePx = fontSizeMm * MM_TO_PX * DPR;
+    const widthPx = Math.max(1, Math.ceil(maxWidthMm * MM_TO_PX * DPR));
+    const heightPx = Math.max(1, Math.ceil(fontSizePx * 1.5));
 
     const canvas = document.createElement("canvas");
     canvas.width = widthPx;
     canvas.height = heightPx;
-
     const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return null;
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.font = `${fontWeight} ${fontSizePx}px "Amiri", serif`;
+
+    const fontSpec = `${fontWeight} ${fontSizePx}px "Amiri", serif`;
+    if (document.fonts && !document.fonts.check(fontSpec)) {
+      console.warn("Amiri may not be loaded for:", fontSpec);
+    }
+
+    ctx.font = fontSpec;
     ctx.fillStyle = color;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.direction = "rtl";
-    ctx.fillText(text, widthPx / 2, heightPx / 2);
 
-    const textMetrics = ctx.measureText(text);
-    const actualWidthPx = Math.min(textMetrics.width, widthPx);
-    const actualWidthMm = actualWidthPx / (MM_TO_PX * dpr);
-    const actualHeightMm = fontSizeMm * 1.4;
+    // maxWidth يمنع تجاوز الحد
+    ctx.fillText(text, widthPx / 2, heightPx / 2, widthPx * 0.98);
 
     return {
       dataUrl: canvas.toDataURL("image/png", 1.0),
-      widthMm: actualWidthMm,
-      heightMm: actualHeightMm,
+      widthMm: maxWidthMm,
+      heightMm: heightPx / (MM_TO_PX * DPR),
     };
   }
 
   // =====================================================
-  // ✅ تصدير الشجرة مقسمة (Tiling)
+  // استنساخ SVG لتقسيم آمن
   // =====================================================
-  async function exportTreeAsTiles(): Promise<string> {
+  function getSvgDimensions(svg: SVGSVGElement): { w: number; h: number } {
+    const viewBox = svg.getAttribute("viewBox");
+    if (viewBox) {
+      const parts = viewBox.split(/[\s,]+/).map(Number);
+      if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+        return { w: parts[2], h: parts[3] };
+      }
+    }
+    const w = svg.clientWidth || svg.getBoundingClientRect().width || 1200;
+    const h = svg.clientHeight || svg.getBoundingClientRect().height || 800;
+    return { w, h };
+  }
+
+  // =====================================================
+  // تصدير الشجرة (مع تقسيم آمن عبر viewBox)
+  // =====================================================
+  async function exportTreeAsImage(): Promise<string> {
     if (!svgRef.current) throw new Error("SVG not found");
     const { toPng } = await import("html-to-image");
     const svgElement = svgRef.current;
 
-    const viewBox = svgElement.getAttribute("viewBox");
-    let svgWidth = 1200;
-    let svgHeight = 800;
-    if (viewBox) {
-      const parts = viewBox.split(" ").map(Number);
-      if (parts.length === 4) {
-        svgWidth = parts[2];
-        svgHeight = parts[3];
-      }
-    }
+    const { w: svgWidth, h: svgHeight } = getSvgDimensions(svgElement);
 
-    // إذا كانت الشجرة صغيرة، نصدّرها دفعة واحدة
+    // شجرة صغيرة → دفعة واحدة
     if (svgWidth < 4000 && svgHeight < 4000) {
       setProgress("جاري تصدير الشجرة...");
+      setProgressPercent(20);
       return await toPng(svgElement as unknown as HTMLElement, {
         pixelRatio: 3,
         backgroundColor: "#FDFBF3",
         cacheBust: true,
-        skipAutoScale: true,
       });
     }
 
-    // إذا كانت الشجرة ضخمة، نقسمها
-    setProgress("جاري تجهيز الشجرة الضخمة (تقسيم ذكي)...");
+    // شجرة ضخمة → تقسيم عبر viewBox
+    setProgress("جاري تقسيم الشجرة الضخمة...");
+    const SCALE = 2;
     const canvas = document.createElement("canvas");
+    canvas.width = Math.round(svgWidth * SCALE);
+    canvas.height = Math.round(svgHeight * SCALE);
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas not supported");
 
-    const scale = 2;
-    canvas.width = svgWidth * scale;
-    canvas.height = svgHeight * scale;
+    ctx.fillStyle = "#FDFBF3";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const cols = 3;
     const rows = 3;
-    const tileWidth = svgWidth / cols;
-    const tileHeight = svgHeight / rows;
+    const tileW = svgWidth / cols;
+    const tileH = svgHeight / rows;
 
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const clipX = c * tileWidth;
-        const clipY = r * tileHeight;
+    // استنساخ SVG مرة واحدة
+    const clone = svgElement.cloneNode(true) as SVGSVGElement;
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clone.setAttribute("width", String(tileW));
+    clone.setAttribute("height", String(tileH));
 
-        const tileDataUrl = await toPng(svgElement as unknown as HTMLElement, {
-          width: svgWidth,
-          height: svgHeight,
-          style: {
-            transform: `translate(-${clipX}px, -${clipY}px)`,
-            transformOrigin: "top left",
-          },
-          pixelRatio: scale,
-          backgroundColor: "#FDFBF3",
-        });
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText =
+      "position:fixed;left:-99999px;top:0;background:#FDFBF3;pointer-events:none;";
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
 
-        await new Promise<void>((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            ctx.drawImage(
-              img,
-              clipX * scale,
-              clipY * scale,
-              tileWidth * scale,
-              tileHeight * scale
-            );
-            resolve();
-          };
-          img.src = tileDataUrl;
-        });
+    try {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const clipX = c * tileW;
+          const clipY = r * tileH;
 
-        const currentProgress =
-          Math.round(((r * cols + c + 1) / (cols * rows)) * 60) + 10;
-        setProgressPercent(currentProgress);
+          clone.setAttribute(
+            "viewBox",
+            `${clipX} ${clipY} ${tileW} ${tileH}`
+          );
+
+          const tileUrl = await toPng(wrapper, {
+            width: Math.ceil(tileW),
+            height: Math.ceil(tileH),
+            pixelRatio: SCALE,
+            backgroundColor: "#FDFBF3",
+            cacheBust: true,
+          });
+
+          await new Promise<void>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+              ctx.drawImage(
+                img,
+                Math.round(clipX * SCALE),
+                Math.round(clipY * SCALE),
+                Math.round(tileW * SCALE),
+                Math.round(tileH * SCALE)
+              );
+              resolve();
+            };
+            img.onerror = () =>
+              reject(new Error("فشل تحميل قطعة من الشجرة"));
+            img.src = tileUrl;
+          });
+
+          setProgressPercent(
+            10 + Math.round(((r * cols + c + 1) / (cols * rows)) * 60)
+          );
+        }
       }
+    } finally {
+      document.body.removeChild(wrapper);
     }
 
     setProgress("جاري دمج الأجزاء...");
+    setProgressPercent(75);
     return canvas.toDataURL("image/png", 1.0);
+  }
+
+  // =====================================================
+  // ضغط الصورة إذا كانت كبيرة (لتفادي فشل jsPDF)
+  // =====================================================
+  async function compressIfNeeded(
+    dataUrl: string,
+    maxBytes = 30 * 1024 * 1024
+  ): Promise<{ url: string; format: "PNG" | "JPEG" }> {
+    const approx = (dataUrl.length * 3) / 4;
+    if (approx <= maxBytes) return { url: dataUrl, format: "PNG" };
+
+    setProgress("جاري ضغط الصورة...");
+    const img = new Image();
+    img.src = dataUrl;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("فشل تحميل الصورة للضغط"));
+    });
+
+    // قلّل الأبعاد إذا كانت ضخمة جداً
+    const maxDim = 6000;
+    const ratio = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * ratio);
+    c.height = Math.round(img.height * ratio);
+    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+
+    return { url: c.toDataURL("image/jpeg", 0.92), format: "JPEG" };
   }
 
   // =====================================================
@@ -249,7 +329,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
     setIsExporting(true);
     setProgressPercent(0);
     setProgress(`جاري تحضير PDF بمقاس ${size}...`);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((r) => setTimeout(r, 100));
 
     try {
       const { jsPDF } = await import("jspdf");
@@ -262,12 +342,17 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       };
       const [paperWidth, paperHeight] = paperSizes[size];
 
+      // 1) تصدير الشجرة
       setProgress("جاري تصدير الشجرة...");
-      const dataUrl = await exportTreeAsTiles();
+      const rawDataUrl = await exportTreeAsImage();
+
+      // 2) ضغط إن لزم
+      const { url: treeDataUrl, format: treeFormat } =
+        await compressIfNeeded(rawDataUrl);
 
       setProgress("جاري إنشاء ملف PDF...");
-      setProgressPercent(70);
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      setProgressPercent(80);
+      await new Promise((r) => setTimeout(r, 150));
 
       const pdf = new jsPDF({
         orientation: "landscape",
@@ -276,10 +361,11 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         compress: true,
       });
 
-      // الخلفية والإطار
+      // الخلفية
       pdf.setFillColor(253, 251, 243);
       pdf.rect(0, 0, paperWidth, paperHeight, "F");
 
+      // الإطار الخارجي والداخلي
       const frameWidth = Math.max(0.5, paperWidth * 0.003);
       pdf.setDrawColor(201, 162, 39);
       pdf.setLineWidth(frameWidth);
@@ -307,85 +393,101 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       const padding = paperWidth * 0.05;
       let currentY = paperHeight * 0.06;
 
+      // العنوان
       if (settings.treeTitle) {
-        const result = drawArabicText(settings.treeTitle, {
+        const r = drawArabicText(settings.treeTitle, {
           fontSizeMm: titleFontSize,
           fontWeight: "bold",
           color: "#0A1711",
           maxWidthMm: paperWidth - padding * 2,
         });
-        if (result) {
+        if (r) {
           pdf.addImage(
-            result.dataUrl,
+            r.dataUrl,
             "PNG",
             padding,
             currentY,
             paperWidth - padding * 2,
-            result.heightMm,
+            r.heightMm,
             undefined,
             "SLOW"
           );
-          currentY += result.heightMm + paperHeight * 0.01;
+          currentY += r.heightMm + paperHeight * 0.01;
         }
       }
 
+      // العنوان الفرعي
       if (settings.treeSubtitle) {
-        const result = drawArabicText(settings.treeSubtitle, {
+        const r = drawArabicText(settings.treeSubtitle, {
           fontSizeMm: subtitleFontSize,
           color: "#8B5A2B",
           maxWidthMm: paperWidth - padding * 2.5,
         });
-        if (result) {
+        if (r) {
           pdf.addImage(
-            result.dataUrl,
+            r.dataUrl,
             "PNG",
             padding * 1.25,
             currentY,
             paperWidth - padding * 2.5,
-            result.heightMm,
+            r.heightMm,
             undefined,
             "SLOW"
           );
-          currentY += result.heightMm + paperHeight * 0.008;
+          currentY += r.heightMm + paperHeight * 0.008;
         }
       }
 
+      // الوصف
       if (settings.treeDescription) {
-        const result = drawArabicText(settings.treeDescription, {
+        const r = drawArabicText(settings.treeDescription, {
           fontSizeMm: descriptionFontSize,
           color: "#505050",
           maxWidthMm: paperWidth - padding * 3,
         });
-        if (result) {
+        if (r) {
           pdf.addImage(
-            result.dataUrl,
+            r.dataUrl,
             "PNG",
             padding * 1.5,
             currentY,
             paperWidth - padding * 3,
-            result.heightMm,
+            r.heightMm,
             undefined,
             "SLOW"
           );
-          currentY += result.heightMm + paperHeight * 0.008;
+          currentY += r.heightMm + paperHeight * 0.008;
         }
       }
 
+      // مساحة الفوتر
       const validFooterLines = settings.footerLines.filter((l) => l.trim());
       const footerSectionHeight =
         validFooterLines.length > 0
-          ? paperHeight * 0.05 + validFooterLines.length * footerFontSize * 1.5
+          ? paperHeight * 0.05 +
+            validFooterLines.length * footerFontSize * 1.5
           : paperHeight * 0.03;
 
-      const treeTopY = currentY + paperHeight * 0.01;
-      const treeBottomY = paperHeight - footerSectionHeight - paperHeight * 0.02;
-      const treeAvailableHeight = treeBottomY - treeTopY;
+      // حساب مساحة الشجرة مع حماية
+      let treeTopY = currentY + paperHeight * 0.01;
+      let treeBottomY =
+        paperHeight - footerSectionHeight - paperHeight * 0.02;
+      let treeAvailableHeight = treeBottomY - treeTopY;
+
+      if (treeAvailableHeight < paperHeight * 0.2) {
+        treeAvailableHeight = paperHeight * 0.5;
+        treeTopY = paperHeight * 0.25;
+        treeBottomY = treeTopY + treeAvailableHeight;
+      }
+
       const treeAvailableWidth = paperWidth - padding * 2;
 
+      // تحميل الصورة لمعرفة النسبة
       const img = new Image();
-      img.src = dataUrl;
-      await new Promise((resolve) => {
-        img.onload = resolve;
+      img.src = treeDataUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("فشل تحميل صورة الشجرة"));
       });
 
       const imgRatio = img.width / img.height;
@@ -393,7 +495,6 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
 
       let imgWidth = treeAvailableWidth;
       let imgHeight = treeAvailableWidth / imgRatio;
-
       if (imgRatio < availableRatio) {
         imgHeight = treeAvailableHeight;
         imgWidth = treeAvailableHeight * imgRatio;
@@ -403,8 +504,8 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       const imgY = treeTopY + (treeAvailableHeight - imgHeight) / 2;
 
       pdf.addImage(
-        dataUrl,
-        "PNG",
+        treeDataUrl,
+        treeFormat,
         imgX,
         imgY,
         imgWidth,
@@ -413,6 +514,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         "FAST"
       );
 
+      // الفوتر
       if (validFooterLines.length > 0) {
         const footerStartY =
           paperHeight - footerSectionHeight - paperHeight * 0.01;
@@ -422,23 +524,23 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
 
         let lineY = footerStartY + paperHeight * 0.008;
         validFooterLines.forEach((line) => {
-          const result = drawArabicText(line, {
+          const r = drawArabicText(line, {
             fontSizeMm: footerFontSize,
             color: "#505050",
             maxWidthMm: paperWidth - padding * 2,
           });
-          if (result) {
+          if (r) {
             pdf.addImage(
-              result.dataUrl,
+              r.dataUrl,
               "PNG",
               padding,
               lineY,
               paperWidth - padding * 2,
-              result.heightMm,
+              r.heightMm,
               undefined,
               "SLOW"
             );
-            lineY += result.heightMm * 1.3;
+            lineY += r.heightMm * 1.3;
           }
         });
       }
@@ -476,10 +578,10 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
     setIsExporting(true);
     setProgressPercent(0);
     setProgress("جاري إنشاء PNG...");
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((r) => setTimeout(r, 100));
 
     try {
-      const dataUrl = await exportTreeAsTiles();
+      const dataUrl = await exportTreeAsImage();
       const link = document.createElement("a");
       link.download = `${treeTitle}.png`;
       link.href = dataUrl;
@@ -492,7 +594,10 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         setProgressPercent(0);
       }, 2000);
     } catch (error) {
-      setProgress("❌ حدث خطأ");
+      console.error("PNG Export Error:", error);
+      setProgress(
+        `❌ ${error instanceof Error ? error.message : "حدث خطأ"}`
+      );
       setTimeout(() => {
         setProgress("");
         setProgressPercent(0);
