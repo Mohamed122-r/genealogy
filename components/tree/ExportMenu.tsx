@@ -34,7 +34,6 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
     footerLines: [],
   });
 
-  // تحميل الخطوط
   useEffect(() => {
     let isMounted = true;
     async function loadFonts() {
@@ -64,7 +63,6 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
     return () => { isMounted = false; };
   }, []);
 
-  // جلب الإعدادات
   useEffect(() => {
     fetch("/api/admin/export-settings")
       .then((res) => res.json())
@@ -138,7 +136,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   }
 
   // =====================================================
-  // تصدير PDF (متجه 100%)
+  // ✅ تصدير PDF كـ Vector (متجه) لا نهائي الدقة
   // =====================================================
   async function exportPDF(size: PaperSize) {
     if (!svgRef.current) return;
@@ -149,10 +147,13 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
     await new Promise((r) => setTimeout(r, 100));
 
     try {
-      setProgress("جاري معالجة البيانات...");
-      
+      setProgress("جاري تحميل مكتبات التصدير...");
+
+      // ✅ 1) استيراد jsPDF
       const { jsPDF } = await import("jspdf");
-      const { svg2pdf } = await import("svg2pdf.js");
+
+      // ✅ 2) استيراد svg2pdf.js كـ side-effect (يضيف دالة pdf.svg تلقائياً)
+      await import("svg2pdf.js");
 
       const paperSizes: Record<PaperSize, [number, number]> = {
         A4: [297, 210], A3: [420, 297], A2: [594, 420], A1: [841, 594], A0: [1189, 841],
@@ -161,7 +162,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
 
       const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: [paperWidth, paperHeight], compress: true });
 
-      // 1. الخلفية والإطار
+      // الخلفية والإطار
       pdf.setFillColor(253, 251, 243);
       pdf.rect(0, 0, paperWidth, paperHeight, "F");
       pdf.setDrawColor(201, 162, 39);
@@ -171,7 +172,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       const padding = paperWidth * 0.05;
       let currentY = paperHeight * 0.06;
 
-      // 2. رسم العنوان والوصف
+      // العنوان
       if (settings.treeTitle) {
         const titleFontSize = getFontSize(paperWidth, "title");
         const r = drawArabicText(settings.treeTitle, { fontSizeMm: titleFontSize, fontWeight: "bold", color: "#0A1711", maxWidthMm: paperWidth - padding * 2 });
@@ -181,6 +182,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         }
       }
 
+      // الوصف
       if (settings.treeDescription) {
         const descFontSize = getFontSize(paperWidth, "description");
         const r = drawArabicText(settings.treeDescription, { fontSizeMm: descFontSize, color: "#505050", maxWidthMm: paperWidth - padding * 2.5 });
@@ -190,7 +192,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
         }
       }
 
-      // 3. حساب أبعاد الشجرة
+      // حساب مساحة الشجرة
       const footerSectionHeight = paperHeight * 0.04;
       const treeTopY = currentY + paperHeight * 0.01;
       const treeBottomY = paperHeight - footerSectionHeight - paperHeight * 0.02;
@@ -213,15 +215,13 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       const imgX = (paperWidth - imgWidth) / 2;
       const imgY = treeTopY + (treeAvailableHeight - imgHeight) / 2;
 
-      // 4. 🚀 إضافة الشجرة كـ Vector (متجه لا نهائي الدقة)
-      setProgress("جاري تحويل الشجرة إلى متجه عالي الدقة...");
-      
+      // ✅ 3) تجهيز نسخة من الـ SVG مع الخطوط
+      setProgress("جاري تحويل الشجرة إلى متجه...");
       const clone = svgEl.cloneNode(true) as SVGSVGElement;
       clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
       clone.setAttribute("width", String(imgWidth));
       clone.setAttribute("height", String(imgHeight));
 
-      // إضافة الخطوط للـ SVG قبل التحويل
       const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
       styleEl.textContent = `
         @font-face { font-family: 'Amiri'; font-weight: 400; src: url('https://fonts.gstatic.com/s/amiri/v27/J7aRnpd8CGxBHqUpvrIw74NL.woff2') format('woff2'); }
@@ -232,8 +232,8 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
       defs.appendChild(styleEl);
       if (!clone.querySelector("defs")) clone.insertBefore(defs, clone.firstChild);
 
-      // تحويل SVG إلى PDF (Vector)
-      await svg2pdf(clone, pdf, {
+      // ✅ 4) استدعاء pdf.svg() الذي أضافته مكتبة svg2pdf.js
+      await (pdf as any).svg(clone, {
         x: imgX,
         y: imgY,
         width: imgWidth,
@@ -269,7 +269,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
   }
 
   // =====================================================
-  // تصدير PNG (كما هو ممتاز)
+  // تصدير PNG
   // =====================================================
   async function exportPNG() {
     if (!svgRef.current) return;
@@ -281,7 +281,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
     try {
       const svgEl = svgRef.current;
       const { w: svgWidth, h: svgHeight } = getSvgDimensions(svgEl);
-      
+
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       let SCALE = isMobile ? 1.5 : 3.0;
       const MAX_CANVAS_DIM = isMobile ? 4000 : 12000;
@@ -388,7 +388,7 @@ export function ExportMenu({ svgRef, treeTitle = "شجرة-النسب" }: Export
                       {errorMsg}
                     </div>
                   )}
-                  
+
                   <div>
                     <h3 className="font-bold text-dark-bg mb-3 flex items-center gap-2"><FileText className="w-5 h-5 text-red-600" /> تصدير PDF (متجه - تقريب لا نهائي)</h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
